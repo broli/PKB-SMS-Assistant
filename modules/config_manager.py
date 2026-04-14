@@ -22,8 +22,10 @@ def load_config():
             "refresh_token": "",
             "goto_phone": "",
             "gemini_api_key": "",
+            "gemini_api_key_paid": "", # [NEW]
             "custom_prompt": ""
         }
+
     try:
         with open(CONFIG_FILE, "r") as f:
             scrambled = f.read()
@@ -36,8 +38,10 @@ def load_config():
             "refresh_token": "",
             "goto_phone": "",
             "gemini_api_key": "",
+            "gemini_api_key_paid": "", # [NEW]
             "custom_prompt": ""
         }
+
 
 def save_config(config_data):
     try:

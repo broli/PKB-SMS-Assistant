@@ -80,8 +80,16 @@ class MainWindow(ctk.CTk):
         self.intent_text.pack(fill="x", padx=10, pady=5)
         add_context_menu(self.intent_text)
         
-        self.generate_btn = ctk.CTkButton(self.right_frame, text="✨ Generate AI Reply", command=self.generate_reply)
-        self.generate_btn.pack(fill="x", padx=10, pady=15)
+        self.gen_btn_frame = ctk.CTkFrame(self.right_frame, fg_color="transparent")
+        self.gen_btn_frame.pack(fill="x", padx=10, pady=15)
+        
+        self.generate_btn = ctk.CTkButton(self.gen_btn_frame, text="✨ Generate AI Reply", command=self.generate_reply)
+        self.generate_btn.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        
+        self.use_paid_var = ctk.BooleanVar(value=False)
+        self.use_paid_switch = ctk.CTkSwitch(self.gen_btn_frame, text="Use Paid", variable=self.use_paid_var, font=ctk.CTkFont(size=12))
+        self.use_paid_switch.pack(side="right")
+
         
         self.draft_label = ctk.CTkLabel(self.right_frame, text="Draft Reply (Editable):")
         self.draft_label.pack(anchor="w", padx=10, pady=(10, 0))
@@ -244,25 +252,55 @@ class MainWindow(ctk.CTk):
         def _generate():
             config = config_manager.load_config()
             receiver_name = self.receiver_entry.get().strip() or "Contact"
-            reply = gemini_ai.generate_reply(
-                config.get("gemini_api_key"), 
-                history, 
-                tone, 
-                intent,
-                receiver_name=receiver_name,
-                custom_prompt=config.get("custom_prompt")
-            )
             
+            free_key = config.get("gemini_api_key")
+            paid_key = config.get("gemini_api_key_paid")
+            use_paid = self.use_paid_var.get()
+            
+            # 1. Try Free Key
+            reply = ""
+            used_paid = False
+            
+            if free_key:
+                reply = gemini_ai.generate_reply(
+                    free_key, 
+                    history, 
+                    tone, 
+                    intent,
+                    receiver_name=receiver_name,
+                    custom_prompt=config.get("custom_prompt")
+                )
+            else:
+                reply = "Error: Free Gemini API key is missing."
+
+            # 2. Fallback to Paid if needed
+            if (not free_key or reply.startswith("Error")) and use_paid:
+                if not paid_key:
+                    reply = "Error: Paid Gemini API key is missing (Toggle is ON)."
+                else:
+                    self.status_label.configure(text="Free key failed, trying paid key...")
+                    reply = gemini_ai.generate_reply(
+                        paid_key, 
+                        history, 
+                        tone, 
+                        intent,
+                        receiver_name=receiver_name,
+                        custom_prompt=config.get("custom_prompt")
+                    )
+                    used_paid = not reply.startswith("Error")
+
             self.draft_text.delete("0.0", "end")
             self.draft_text.insert("0.0", reply)
             
             if not reply.startswith("Error"):
                 rate_limiter.record_ai_call()
-                self.status_label.configure(text="Reply generated. Review before sending.")
+                status_msg = "Reply generated (PAID)." if used_paid else "Reply generated (Free)."
+                self.status_label.configure(text=status_msg)
             else:
-                self.status_label.configure(text="Error generating reply.")
+                self.status_label.configure(text=f"Generation failed: {reply[:50]}...")
                 
             self.generate_btn.configure(state="normal")
+
 
         threading.Thread(target=_generate, daemon=True).start()
 
