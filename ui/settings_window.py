@@ -45,13 +45,22 @@ class SettingsWindow(ctk.CTkToplevel):
         self.phone_entry.pack(padx=20, pady=5)
         add_context_menu(self.phone_entry)
         
-        # Gemini API Key
-        self.gemini_var = ctk.StringVar(value=self.config.get("gemini_api_key", ""))
-        self.gemini_label = ctk.CTkLabel(self.scroll_frame, text="Gemini API Key:")
-        self.gemini_label.pack(anchor="w", padx=20, pady=(10,0))
-        self.gemini_entry = ctk.CTkEntry(self.scroll_frame, textvariable=self.gemini_var, show="*", width=500)
-        self.gemini_entry.pack(padx=20, pady=5)
-        add_context_menu(self.gemini_entry)
+        # Gemini Free API Key
+        self.gemini_free_var = ctk.StringVar(value=self.config.get("gemini_api_key", ""))
+        self.gemini_free_label = ctk.CTkLabel(self.scroll_frame, text="Free Gemini API Key:")
+        self.gemini_free_label.pack(anchor="w", padx=20, pady=(10,0))
+        self.gemini_free_entry = ctk.CTkEntry(self.scroll_frame, textvariable=self.gemini_free_var, show="*", width=500)
+        self.gemini_free_entry.pack(padx=20, pady=5)
+        add_context_menu(self.gemini_free_entry)
+
+        # Gemini Paid API Key
+        self.gemini_paid_var = ctk.StringVar(value=self.config.get("gemini_api_key_paid", ""))
+        self.gemini_paid_label = ctk.CTkLabel(self.scroll_frame, text="Paid Gemini API Key:")
+        self.gemini_paid_label.pack(anchor="w", padx=20, pady=(10,0))
+        self.gemini_paid_entry = ctk.CTkEntry(self.scroll_frame, textvariable=self.gemini_paid_var, show="*", width=500)
+        self.gemini_paid_entry.pack(padx=20, pady=5)
+        add_context_menu(self.gemini_paid_entry)
+
         
         # AI Custom Prompt
         self.prompt_label = ctk.CTkLabel(self.scroll_frame, text="Custom AI System Prompt:")
@@ -100,8 +109,10 @@ class SettingsWindow(ctk.CTkToplevel):
             "access_token": self.config.get("access_token", ""),
             "refresh_token": self.config.get("refresh_token", ""),
             "goto_phone": self.phone_var.get(),
-            "gemini_api_key": self.gemini_var.get(),
+            "gemini_api_key": self.gemini_free_var.get(),
+            "gemini_api_key_paid": self.gemini_paid_var.get(),
             "custom_prompt": self.prompt_text.get("0.0", "end").strip()
         }
+
         config_manager.save_config(new_config)
         self.destroy()
