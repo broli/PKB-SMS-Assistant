@@ -25,6 +25,10 @@ history.json
 config.json
 contacts.json
 
+# Deployment Automation
+deploy.py
+C:/Users/carlo/Desktop/PKB Apps/SMS Companion/
+
 
 # Logs and Temp
 *.log
