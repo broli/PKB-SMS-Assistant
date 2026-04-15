@@ -43,7 +43,16 @@ def start_oauth_flow():
     exchanges the code for tokens, and saves them.
     Returns True if successful, False otherwise.
     """
-    auth_url = f"{AUTHORIZE_URL}?client_id={CLIENT_ID}&response_type=code&redirect_uri={urllib.parse.quote(REDIRECT_URI)}"
+    SCOPES = "messaging.v1.read messaging.v1.send voice-admin.v1.read"
+
+    auth_url = (
+        f"{AUTHORIZE_URL}"
+        f"?client_id={CLIENT_ID}"
+        f"&response_type=code"
+        f"&redirect_uri={urllib.parse.quote(REDIRECT_URI)}"
+        f"&scope={urllib.parse.quote(SCOPES)}"
+    )
+
     
     # Start local server on port 8080
     port = 8080

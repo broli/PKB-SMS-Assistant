@@ -1,15 +1,20 @@
 import customtkinter as ctk
 import threading
-from modules import config_manager
+import os
+from tkinter import filedialog, messagebox
+from modules import config_manager, contact_book
 from modules.gemini_ai import DEFAULT_PROMPT
 from modules.auth_handler import start_oauth_flow
 from ui.utils import add_context_menu
+from ui.import_preview import ImportPreviewWindow
+
+
 
 class SettingsWindow(ctk.CTkToplevel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.title("Settings - API Keys & Prompts")
-        self.geometry("600x650")
+        self.geometry("600x750")
         
         # Attempt to make it modal and stay on top
         self.attributes('-topmost', 1)
@@ -75,12 +80,37 @@ class SettingsWindow(ctk.CTkToplevel):
         
         self.reset_button = ctk.CTkButton(self.scroll_frame, text="Reset to Default Prompt", command=self.reset_prompt, fg_color="#34495e", hover_color="#2c3e50")
         self.reset_button.pack(padx=20, pady=5)
-        
+
+        # ── Contact Book ───────────────────────────────────────────────
+        self.contacts_sep = ctk.CTkLabel(self.scroll_frame, text="─" * 40, text_color="gray")
+        self.contacts_sep.pack(pady=(15, 0))
+
+        self.contacts_label = ctk.CTkLabel(self.scroll_frame, text="Contact Book", font=ctk.CTkFont(size=14, weight="bold"))
+        self.contacts_label.pack(anchor="w", padx=20, pady=(8, 0))
+
+        self.contacts_desc = ctk.CTkLabel(
+            self.scroll_frame,
+            text="Sync names from a GoTo copy-paste TXT file.",
+            text_color="gray",
+            justify="left"
+        )
+        self.contacts_desc.pack(anchor="w", padx=20, pady=(2, 10))
+
+        self.import_btn = ctk.CTkButton(
+            self.scroll_frame, text="📂 Import from GoTo (.txt)",
+            command=self.open_import_file,
+            fg_color="#34495e", hover_color="#2c3e50"
+        )
+        self.import_btn.pack(padx=20, pady=(5, 15))
+
+
         # Save Button
         self.save_button = ctk.CTkButton(self, text="Save Settings", command=self.save_settings)
         self.save_button.pack(pady=20)
         
+
     def reset_prompt(self):
+
         self.prompt_text.delete("0.0", "end")
         self.prompt_text.insert("0.0", DEFAULT_PROMPT)
 
@@ -104,6 +134,39 @@ class SettingsWindow(ctk.CTkToplevel):
         else:
             self.login_status.configure(text="Status: Login Failed", text_color="red")
             
+    def open_import_file(self):
+        path = filedialog.askopenfilename(
+            title="Select Raw GoTo Contacts Text File",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+            
+        # Run analysis (delta)
+        plan = contact_book.analyze_raw_text(path)
+        
+        total_changes = len(plan["new"]) + len(plan["update"])
+        if total_changes == 0 and plan["total_scanned"] > 0:
+            messagebox.showinfo("Import Information", "No new contacts or updates found. Your list is already up to date!")
+            return
+        elif plan["total_scanned"] == 0:
+            messagebox.showwarning("Import Warning", "The file appears to be empty or invalid.")
+            return
+
+        # Show preview modal
+        ImportPreviewWindow(self, plan, on_confirm=self._on_import_confirmed)
+
+    def _on_import_confirmed(self, success):
+        if success:
+            messagebox.showinfo("Import Successful", "Contacts merged successfully!")
+            # Trigger main window to reload contacts if UI exists
+            if hasattr(self.master, "_contacts"):
+                self.master._contacts = contact_book.load_contacts()
+                if hasattr(self.master, "fetch_recent_chats"):
+                    self.master.fetch_recent_chats()
+        else:
+            messagebox.showerror("Import Error", "Failed to save contacts. Check console for details.")
+
     def save_settings(self):
         new_config = {
             "access_token": self.config.get("access_token", ""),
@@ -116,3 +179,4 @@ class SettingsWindow(ctk.CTkToplevel):
 
         config_manager.save_config(new_config)
         self.destroy()
+

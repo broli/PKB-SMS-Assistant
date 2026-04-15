@@ -1,4 +1,33 @@
+# Python Standard
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Distribution / Build (PyInstaller)
+build/
+dist/
+
+# Project Specific (Local Data & Keys)
 config.dat
 contacts.json
+config.json
+history.json
 /modules/__pycache__
 /ui/__pycache__
+
+
+# Logs and Temp
+*.log
+.temp/
