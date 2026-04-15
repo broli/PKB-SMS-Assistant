@@ -2,6 +2,8 @@ import requests
 from modules.config_manager import load_config
 from modules.auth_handler import refresh_access_token
 from modules import rate_limiter
+from modules import contact_book
+
 
 class GoToAPI:
     def __init__(self):
@@ -102,11 +104,101 @@ class GoToAPI:
         except Exception as e:
             return [{"body": f"Error: {e}", "is_user": False}]
 
+    def get_recent_conversations(self):
+        """Fetches recent conversations sorted by latest interaction using the correct /conversations endpoint."""
+        config = load_config()
+        owner_number = config.get("goto_phone")
+        if not owner_number:
+            return {"error": "GoTo Account Phone Number missing in settings."}
+
+        try:
+            url = f"{self.base_url}/conversations"
+            params = {"ownerPhoneNumber": self._clean_phone(owner_number)}
+            resp = self._make_request("GET", url, params=params)
+            data = resp.json()
+
+            items = data.get("items", [])
+            conversations = []
+            for item in items:
+                # contactPhoneNumbers is a list; grab the first entry
+                contact_phones = item.get("contactPhoneNumbers", [])
+                contact_phone  = contact_phones[0] if contact_phones else ""
+                conversations.append({
+                    "phone":            contact_phone,
+                    "last_interaction": item.get("lastMessageTimestamp", ""),
+                    "unread_count":     item.get("unreadMessagesCount", 0),
+                    "last_message_id":  item.get("lastMessageId", ""),
+                })
+
+            # API already returns DESC by lastMessageTimestamp, but sort locally to be safe
+            conversations.sort(key=lambda x: x["last_interaction"], reverse=True)
+            return {"conversations": conversations}
+
+        except requests.exceptions.RequestException as e:
+            msg = f"Error fetching conversations: {e}"
+            if hasattr(e, 'response') and e.response is not None:
+                msg += f" | {e.response.text}"
+            return {"error": msg}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def sync_contacts(self):
+        """
+        Fetches all contacts from GoTo voice-admin API and merges into local contacts.json.
+        Preserves any existing local nicknames.
+        Returns dict with 'count' on success or 'error' on failure.
+        """
+        try:
+            url = "https://api.goto.com/voice-admin/v1/contacts"
+            # Use _make_request to get auto token-refresh
+            resp = self._make_request("GET", url)
+            data = resp.json()
+
+            # Load existing local contacts to preserve nicknames
+            existing = contact_book.load_contacts()
+
+            items = data.get("items", [])
+            count = 0
+            for item in items:
+                phones = item.get("phoneNumbers", []) or []
+                first  = item.get("firstName", "").strip()
+                last   = item.get("lastName",  "").strip()
+                name   = f"{first} {last}".strip() or item.get("name", "").strip()
+
+                for phone_entry in phones:
+                    # phone_entry may be a string or a dict {"number": "+1...", "type": "..."}
+                    if isinstance(phone_entry, dict):
+                        raw_phone = phone_entry.get("number", "")
+                    else:
+                        raw_phone = str(phone_entry)
+
+                    if not raw_phone:
+                        continue
+
+                    # Normalise to E.164 (+digits) — keep existing nickname
+                    digits = "".join(c for c in raw_phone if c.isdigit())
+                    e164   = f"+{digits}" if digits else raw_phone
+
+                    nickname = existing.get(e164, {}).get("nickname", "") if e164 in existing else ""
+                    existing[e164] = {"name": name, "nickname": nickname}
+                    count += 1
+
+            contact_book.save_contacts(existing)
+            return {"count": count, "raw_count": len(items)}
+
+        except requests.exceptions.RequestException as e:
+            msg = f"Error syncing contacts: {e}"
+            if hasattr(e, 'response') and e.response is not None:
+                msg += f" | {e.response.text[:200]}"
+            return {"error": msg}
+        except Exception as e:
+            return {"error": str(e)}
 
     def send_sms(self, phone_number, message):
         """Sends an SMS using GoTo API."""
         config = load_config()
         owner_number = config.get("goto_phone")
+
         if not owner_number:
             print("Missing owner number.")
             return False

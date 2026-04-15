@@ -23,6 +23,8 @@ dist/
 config.dat
 history.json
 config.json
+contacts.json
+
 
 # Logs and Temp
 *.log

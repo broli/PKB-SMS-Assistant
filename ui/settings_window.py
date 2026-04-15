@@ -5,6 +5,8 @@ from modules.gemini_ai import DEFAULT_PROMPT
 from modules.auth_handler import start_oauth_flow
 from ui.utils import add_context_menu
 
+
+
 class SettingsWindow(ctk.CTkToplevel):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -75,12 +77,30 @@ class SettingsWindow(ctk.CTkToplevel):
         
         self.reset_button = ctk.CTkButton(self.scroll_frame, text="Reset to Default Prompt", command=self.reset_prompt, fg_color="#34495e", hover_color="#2c3e50")
         self.reset_button.pack(padx=20, pady=5)
-        
+
+        # ── Contact Book ───────────────────────────────────────────────
+        self.contacts_sep = ctk.CTkLabel(self.scroll_frame, text="─" * 40, text_color="gray")
+        self.contacts_sep.pack(pady=(15, 0))
+
+        self.contacts_label = ctk.CTkLabel(self.scroll_frame, text="Contact Book", font=ctk.CTkFont(size=14, weight="bold"))
+        self.contacts_label.pack(anchor="w", padx=20, pady=(8, 0))
+
+        self.contacts_desc = ctk.CTkLabel(
+            self.scroll_frame,
+            text="Contact names are saved locally. Click the \u270f\ufe0f icon on any\nchat in the left panel to add or edit a name for that number.",
+            text_color="gray",
+            justify="left"
+        )
+        self.contacts_desc.pack(anchor="w", padx=20, pady=(2, 10))
+
+
         # Save Button
         self.save_button = ctk.CTkButton(self, text="Save Settings", command=self.save_settings)
         self.save_button.pack(pady=20)
         
+
     def reset_prompt(self):
+
         self.prompt_text.delete("0.0", "end")
         self.prompt_text.insert("0.0", DEFAULT_PROMPT)
 
