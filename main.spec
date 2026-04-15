@@ -26,6 +26,7 @@ hiddenimports += [
     'tkinter.filedialog',
     'tkinter.messagebox',
     'threading',
+    'ui.import_preview',
 ]
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
