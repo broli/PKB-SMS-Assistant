@@ -12,6 +12,12 @@ for pkg in ('customtkinter', 'google.genai', 'requests'):
     binaries += tmp[1]
     hiddenimports += tmp[2]
 
+# Add local assets
+datas += [
+    ('Icons', 'Icons'),
+    ('app.ico', '.'),
+]
+
 # Ensure all sub-modules of requests and google are found
 hiddenimports += collect_submodules('requests')
 hiddenimports += collect_submodules('google.genai')

@@ -1,8 +1,9 @@
 import customtkinter as ctk
+import os
 import threading
 from tkinter import filedialog, messagebox
 from ui.settings_window import SettingsWindow
-from ui.utils import add_context_menu
+from ui.utils import add_context_menu, resource_path
 from modules import config_manager, rate_limiter, goto_api, gemini_ai, contact_book
 
 
@@ -14,6 +15,14 @@ class MainWindow(ctk.CTk):
         self.title(title)
         self.geometry("1200x720")
         self.minsize(900, 600)
+
+        # Set window icon
+        try:
+            icon_path = resource_path("app.ico")
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+        except Exception:
+            pass
 
         # ── Active contact state ───────────────────────────────────────────────
         self._active_phone = ""   # phone selected from recent-chats tower
