@@ -1,1 +1,4 @@
 config.dat
+contacts.json
+/modules/__pycache__
+/ui/__pycache__
