@@ -500,6 +500,10 @@ class MainWindow(ctk.CTk):
             self.status_label.configure(text="Error: Enter your intent first.")
             return
 
+        # Capture selection and reset to False so the user must opt-in every time
+        use_paid_requested = self.use_paid_var.get()
+        self.use_paid_var.set(False)
+
         self.status_label.configure(text="Drafting reply via Gemini...")
         self.generate_btn.configure(state="disabled")
 
@@ -509,7 +513,7 @@ class MainWindow(ctk.CTk):
             # ... keys ...
             free_key = config.get("gemini_api_key")
             paid_key = config.get("gemini_api_key_paid")
-            use_paid = self.use_paid_var.get()
+            use_paid = use_paid_requested
 
             reply     = ""
             used_paid = False
