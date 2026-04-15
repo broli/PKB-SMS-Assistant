@@ -80,7 +80,7 @@ class MainWindow(ctk.CTk):
         # ══════════════════════════════════════════════════════════════════════
         self.mid_frame = ctk.CTkFrame(self)
         self.mid_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=(0, 5))
-        self.mid_frame.grid_rowconfigure(1, weight=1)
+        self.mid_frame.grid_rowconfigure(1, weight=0)
         self.mid_frame.grid_columnconfigure(0, weight=1)
 
         # Contact identity bar
@@ -103,26 +103,26 @@ class MainWindow(ctk.CTk):
 
         # Action buttons row
         self.mid_btn_row = ctk.CTkFrame(self.mid_frame, fg_color="transparent")
-        self.mid_btn_row.grid(row=1, column=0, sticky="ew", padx=10, pady=(4, 0))
+        self.mid_btn_row.grid(row=1, column=0, sticky="ew", padx=10, pady=(2, 0))
         self.mid_btn_row.grid_columnconfigure(0, weight=1)
         self.mid_btn_row.grid_columnconfigure(1, weight=1)
 
         self.fetch_btn = ctk.CTkButton(
             self.mid_btn_row, text="📨 Load Chat",
-            command=self.fetch_sms, height=30
+            command=self.fetch_sms, height=34
         )
         self.fetch_btn.grid(row=0, column=0, sticky="ew", padx=(0, 3))
 
         self.export_btn = ctk.CTkButton(
             self.mid_btn_row, text="📥 Export",
             command=self.export_history,
-            fg_color="#34495e", hover_color="#2c3e50", height=30
+            fg_color="#34495e", hover_color="#2c3e50", height=34
         )
         self.export_btn.grid(row=0, column=1, sticky="ew", padx=(3, 0))
 
         # Chat history textbox
         self.history_text = ctk.CTkTextbox(self.mid_frame, wrap="word")
-        self.history_text.grid(row=2, column=0, sticky="nsew", padx=10, pady=(6, 10))
+        self.history_text.grid(row=2, column=0, sticky="nsew", padx=10, pady=(4, 10))
         self.mid_frame.grid_rowconfigure(2, weight=1)
         self.history_text.insert("0.0", "Select a contact from the left panel to load chat history...")
         self.history_text.configure(state="disabled")
