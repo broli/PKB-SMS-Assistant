@@ -67,3 +67,97 @@ def set_nickname(phone: str, nickname: str, contacts_dict: dict) -> dict:
         contacts_dict[phone]["nickname"] = nickname.strip()
     save_contacts(contacts_dict)
     return contacts_dict
+
+
+def _clean_phone(raw_phone: str) -> str:
+    """Internal helper to normalise phone to E.164."""
+    digits = "".join(c for c in str(raw_phone) if c.isdigit())
+    if len(digits) == 10:
+        return f"+1{digits}"
+    elif len(digits) >= 11:
+        return f"+{digits}"
+    return ""
+
+
+def analyze_raw_text(file_path: str) -> dict:
+    """
+    Parses GoTo copy-pasted text and computes a delta against current contacts.
+    Returns: {
+        "new":      {phone: name},      # not in db
+        "update":   {phone: {old: str, new: str}}, # in db but no nickname
+        "preserve": {phone: {name: str, nick: str}}, # in db with nickname (skipped)
+        "total_scanned": int
+    }
+    """
+    current_db = load_contacts()
+    
+    plan = {
+        "new": {},
+        "update": {},
+        "preserve": {},
+        "total_scanned": 0
+    }
+
+    if not os.path.exists(file_path):
+        return plan
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = [line.strip() for line in f if line.strip()]
+        
+        plan["total_scanned"] = len(lines)
+
+        for i, line in enumerate(lines):
+            # The GoTo "Type" column values
+            if line.lower() in ("private", "shared", "company"):
+                name = lines[i-1] if i > 0 else ""
+                # Skip header noise
+                if name in ("Name", "Type", "Phone number", "Email address", "--"):
+                    continue
+                
+                if i+1 < len(lines):
+                    phone_raw = lines[i+1]
+                    if phone_raw == "--" or "@" in phone_raw:
+                        continue
+                    
+                    phone = _clean_phone(phone_raw)
+                    if not phone:
+                        continue
+                    
+                    if phone in current_db:
+                        entry = current_db[phone]
+                        if entry.get("nickname"):
+                            plan["preserve"][phone] = {
+                                "name": entry.get("name", ""),
+                                "nick": entry.get("nickname")
+                            }
+                        else:
+                            old_name = entry.get("name", "")
+                            if old_name != name:
+                                plan["update"][phone] = {"old": old_name, "new": name}
+                            else:
+                                # Name is exactly the same, count as preserve/no-change
+                                plan["preserve"][phone] = {"name": name, "nick": ""}
+                    else:
+                        plan["new"][phone] = name
+
+    except Exception as e:
+        print(f"[contact_book] Error analyzing text: {e}")
+
+    return plan
+
+
+def apply_import_plan(plan: dict) -> bool:
+    """Updates contacts.json based on the computed plan."""
+    db = load_contacts()
+    
+    # Add new ones
+    for phone, name in plan.get("new", {}).items():
+        db[phone] = {"name": name, "nickname": ""}
+        
+    # Update existing (those without nicknames)
+    for phone, data in plan.get("update", {}).items():
+        if phone in db:
+            db[phone]["name"] = data["new"]
+            
+    return save_contacts(db)

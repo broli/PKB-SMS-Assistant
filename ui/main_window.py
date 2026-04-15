@@ -292,13 +292,11 @@ class MainWindow(ctk.CTk):
         unread     = convo.get("unread_count", 0)
 
         display    = contact_book.get_display_name(phone, self._contacts)
-        is_unknown = (display == phone)          # no name or nickname found
         badge      = f"  🔴 {unread}" if unread > 0 else ""
         label      = f"{display}{badge}"
-        sub_label  = phone if not is_unknown else ""
 
         row_frame = ctk.CTkFrame(self.chat_list_frame, fg_color="transparent")
-        row_frame.grid(row=row_idx * 3, column=0, sticky="ew", padx=4, pady=(4, 0))
+        row_frame.grid(row=row_idx * 2, column=0, sticky="ew", padx=4, pady=(4, 0))
         row_frame.grid_columnconfigure(0, weight=1)
 
         # Main clickable button (name / phone)
@@ -323,20 +321,11 @@ class MainWindow(ctk.CTk):
         )
         edit_btn.grid(row=0, column=1, padx=(0, 4))
 
-        # Sub-label: show real phone under the display name
-        if sub_label:
-            snip = ctk.CTkLabel(
-                self.chat_list_frame, text=sub_label,
-                text_color="gray", font=ctk.CTkFont(size=10), anchor="w"
-            )
-            snip.grid(row=row_idx * 3 + 1, column=0, sticky="ew", padx=12)
-            self._chat_row_widgets.append(snip)
-
-
         sep = ctk.CTkFrame(self.chat_list_frame, height=1, fg_color=("gray80", "gray30"))
-        sep.grid(row=row_idx * 3 + 2, column=0, sticky="ew", padx=4)
+        sep.grid(row=row_idx * 2 + 1, column=0, sticky="ew", padx=4)
 
         self._chat_row_widgets.extend([row_frame, sep])
+
 
     def _open_nickname_editor(self, phone, row_frame, main_btn):
         """Inline nickname editor that overlays the contact row."""
