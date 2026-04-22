@@ -27,6 +27,10 @@ history.json
 /modules/__pycache__
 /ui/__pycache__
 
+# Deployment Automation
+deploy.py
+C:/Users/carlo/Desktop/PKB Apps/SMS Companion/
+
 
 # Logs and Temp
 *.log

@@ -1,8 +1,9 @@
 import customtkinter as ctk
+import os
 import threading
 from tkinter import filedialog, messagebox
 from ui.settings_window import SettingsWindow
-from ui.utils import add_context_menu
+from ui.utils import add_context_menu, resource_path
 from modules import config_manager, rate_limiter, goto_api, gemini_ai, contact_book
 
 
@@ -14,6 +15,14 @@ class MainWindow(ctk.CTk):
         self.title(title)
         self.geometry("1200x720")
         self.minsize(900, 600)
+
+        # Set window icon
+        try:
+            icon_path = resource_path("app.ico")
+            if os.path.exists(icon_path):
+                self.iconbitmap(icon_path)
+        except Exception:
+            pass
 
         # ── Active contact state ───────────────────────────────────────────────
         self._active_phone = ""   # phone selected from recent-chats tower
@@ -491,6 +500,10 @@ class MainWindow(ctk.CTk):
             self.status_label.configure(text="Error: Enter your intent first.")
             return
 
+        # Capture selection and reset to False so the user must opt-in every time
+        use_paid_requested = self.use_paid_var.get()
+        self.use_paid_var.set(False)
+
         self.status_label.configure(text="Drafting reply via Gemini...")
         self.generate_btn.configure(state="disabled")
 
@@ -500,7 +513,7 @@ class MainWindow(ctk.CTk):
             # ... keys ...
             free_key = config.get("gemini_api_key")
             paid_key = config.get("gemini_api_key_paid")
-            use_paid = self.use_paid_var.get()
+            use_paid = use_paid_requested
 
             reply     = ""
             used_paid = False
