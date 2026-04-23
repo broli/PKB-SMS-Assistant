@@ -3,8 +3,8 @@ import os
 import time
 
 HISTORY_FILE = "history.json"
-AI_COOLDOWN_SECONDS = 1 * 60  # 1 minute
-GOTO_COOLDOWN_SECONDS = 30     # 30 seconds
+AI_COOLDOWN_SECONDS = 10     # 10 seconds
+GOTO_COOLDOWN_SECONDS = 10   # 10 seconds
 
 def load_history():
     if not os.path.exists(HISTORY_FILE):

@@ -4,7 +4,7 @@ import threading
 from tkinter import filedialog, messagebox
 from ui.settings_window import SettingsWindow
 from ui.utils import add_context_menu, resource_path
-from modules import config_manager, rate_limiter, goto_api, gemini_ai, contact_book
+from modules import config_manager, rate_limiter, goto_api, gemini_ai, contact_book, ollama_ai
 
 
 
@@ -27,6 +27,7 @@ class MainWindow(ctk.CTk):
         # ── Active contact state ───────────────────────────────────────────────
         self._active_phone = ""   # phone selected from recent-chats tower
         self._contacts     = contact_book.load_contacts()  # local name cache
+        self._all_conversations = []  # store fetched convos for filtering
 
 
         # ── Root grid: 1 header row + 1 main row + 1 status row ──────────────
@@ -62,7 +63,7 @@ class MainWindow(ctk.CTk):
         # ══════════════════════════════════════════════════════════════════════
         self.left_frame = ctk.CTkFrame(self)
         self.left_frame.grid(row=1, column=0, sticky="nsew", padx=(10, 5), pady=(0, 5))
-        self.left_frame.grid_rowconfigure(1, weight=1)
+        self.left_frame.grid_rowconfigure(2, weight=1)  # list grows
         self.left_frame.grid_columnconfigure(0, weight=1)
 
         self.recent_header = ctk.CTkLabel(
@@ -77,9 +78,18 @@ class MainWindow(ctk.CTk):
         )
         self.refresh_btn.grid(row=0, column=0, sticky="e", padx=10, pady=(10, 2))
 
+        # Search Entry
+        self.search_entry = ctk.CTkEntry(
+            self.left_frame, placeholder_text="🔍 Search conversation...",
+            height=28
+        )
+        self.search_entry.grid(row=1, column=0, sticky="ew", padx=10, pady=(2, 5))
+        self.search_entry.bind("<KeyRelease>", self._on_search_change)
+        add_context_menu(self.search_entry)
+
         # Scrollable list of conversations
         self.chat_list_frame = ctk.CTkScrollableFrame(self.left_frame)
-        self.chat_list_frame.grid(row=1, column=0, sticky="nsew", padx=5, pady=(2, 5))
+        self.chat_list_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=(2, 5))
         self.chat_list_frame.grid_columnconfigure(0, weight=1)
 
         self._chat_row_widgets = []   # keep references to avoid GC
@@ -273,20 +283,8 @@ class MainWindow(ctk.CTk):
                     self._chat_row_widgets.append(err_label)
                     self.status_label.configure(text="Error loading recent chats.")
                 else:
-                    convos = result.get("conversations", [])
-                    if not convos:
-                        empty = ctk.CTkLabel(
-                            self.chat_list_frame,
-                            text="No recent conversations found.",
-                            text_color="gray"
-                        )
-                        empty.grid(row=0, column=0, padx=8, pady=8, sticky="w")
-                        self._chat_row_widgets.append(empty)
-
-                    for idx, convo in enumerate(convos):
-                        self._add_chat_row(idx, convo)
-
-                    self.status_label.configure(text=f"Loaded {len(convos)} recent conversations.")
+                    self._all_conversations = result.get("conversations", [])
+                    self._filter_conversations()
 
                 self.refresh_btn.configure(state="normal")
 
@@ -373,8 +371,60 @@ class MainWindow(ctk.CTk):
         entry.focus()
 
 
+    def _on_search_change(self, event=None):
+        """Callback for search entry typing."""
+        self._filter_conversations()
+
+
+    def _filter_conversations(self):
+        """Filters the cached conversation list based on search entry text."""
+        query = self.search_entry.get().lower().strip()
+        
+        # Clear current UI rows
+        for w in self._chat_row_widgets:
+            if w.winfo_exists():
+                w.destroy()
+        self._chat_row_widgets.clear()
+
+        # Filter
+        filtered = []
+        for convo in self._all_conversations:
+            phone = convo.get("phone", "Unknown")
+            display = contact_book.get_display_name(phone, self._contacts).lower()
+            if query in phone.lower() or query in display:
+                filtered.append(convo)
+
+        # Render
+        if not filtered:
+            msg = "No conversations found." if self._all_conversations else "No recent conversations found."
+            if query and self._all_conversations:
+                msg = f"No matches for '{query}'"
+                
+            empty = ctk.CTkLabel(
+                self.chat_list_frame,
+                text=msg,
+                text_color="gray"
+            )
+            empty.grid(row=0, column=0, padx=8, pady=8, sticky="w")
+            self._chat_row_widgets.append(empty)
+        else:
+            for idx, convo in enumerate(filtered):
+                self._add_chat_row(idx, convo)
+
+        # Update status if filtering
+        if query:
+            self.status_label.configure(text=f"Found {len(filtered)} matches.")
+        elif self._all_conversations:
+            self.status_label.configure(text=f"Loaded {len(self._all_conversations)} recent conversations.")
+
+
     def _select_contact(self, phone):
         """Called when user clicks a contact row — updates state and loads history."""
+        # Clear search and reset filter
+        if self.search_entry.get():
+            self.search_entry.delete(0, "end")
+            self._filter_conversations()
+
         self._active_phone = phone
         display = contact_book.get_display_name(phone, self._contacts)
         header  = display if display != phone else phone
@@ -517,7 +567,9 @@ class MainWindow(ctk.CTk):
 
             reply     = ""
             used_paid = False
+            used_ollama = False
 
+            # Step 1: Try Free Gemini
             if free_key:
                 reply = gemini_ai.generate_reply(
                     free_key, history, tone, intent,
@@ -527,17 +579,32 @@ class MainWindow(ctk.CTk):
             else:
                 reply = "Error: Free Gemini API key is missing."
 
+            # Step 2: Fallbacks if free fails and 'Use Paid' is enabled
             if (not free_key or reply.startswith("Error")) and use_paid:
-                if not paid_key:
-                    reply = "Error: Paid Gemini API key is missing (Toggle is ON)."
-                else:
-                    self.after(0, lambda: self.status_label.configure(text="Free key failed, trying paid key..."))
-                    reply = gemini_ai.generate_reply(
-                        paid_key, history, tone, intent,
+                # 2.1: Try local Ollama
+                self.after(0, lambda: self.status_label.configure(text="Free key failed, checking Ollama..."))
+                if ollama_ai.is_ollama_available():
+                    self.after(0, lambda: self.status_label.configure(text="Ollama found, generating..."))
+                    reply = ollama_ai.generate_reply(
+                        history, tone, intent,
                         receiver_name=receiver,
                         custom_prompt=config.get("custom_prompt")
                     )
-                    used_paid = not reply.startswith("Error")
+                    used_ollama = not reply.startswith("Error")
+                
+                # 2.2: Try Paid Gemini (if Ollama failed or unavailable)
+                if not used_ollama:
+                    if not paid_key:
+                        reply = "Error: Ollama unavailable and Paid Gemini key is missing."
+                    else:
+                        msg = "Ollama failed, trying paid key..." if "Error" in reply else "Ollama unavailable, trying paid key..."
+                        self.after(0, lambda m=msg: self.status_label.configure(text=m))
+                        reply = gemini_ai.generate_reply(
+                            paid_key, history, tone, intent,
+                            receiver_name=receiver,
+                            custom_prompt=config.get("custom_prompt")
+                        )
+                        used_paid = not reply.startswith("Error")
 
             def _update_ui():
                 if not self.winfo_exists():
@@ -547,9 +614,12 @@ class MainWindow(ctk.CTk):
 
                 if not reply.startswith("Error"):
                     rate_limiter.record_ai_call()
-                    self.status_label.configure(
-                        text="Reply generated (PAID)." if used_paid else "Reply generated (Free)."
-                    )
+                    if used_ollama:
+                        self.status_label.configure(text="Reply generated (Ollama).")
+                    elif used_paid:
+                        self.status_label.configure(text="Reply generated (PAID).")
+                    else:
+                        self.status_label.configure(text="Reply generated (Free).")
                 else:
                     self.status_label.configure(text=f"Generation failed: {reply[:60]}...")
 
