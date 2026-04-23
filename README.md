@@ -2,7 +2,7 @@
   <img src="pkb_sms_assistant_hero.png" width="800" alt="PKB SMS Assistant Banner">
 </p>
 
-# 💬 PKB SMS Assistant v2.0
+# 💬 PKB SMS Assistant v2.1
 
 **PKB SMS Assistant** is a modern, AI-powered desktop application designed to streamline SMS communication via the **GoTo Connect** platform. By leveraging the **Google Gemini Pro** model, it helps users draft professional, empathetic, and context-aware replies to client messages in seconds.
 
@@ -16,9 +16,10 @@
   - Effortlessly manage local nicknames for phone numbers.
   - **Bulk Import**: Quickly sync your entire GoTo contact list via a simple copy-paste text import with a detailed safety preview.
   - **Conflict Intelligence**: Intelligent merging logic that preserves your custom nicknames while updating official names.
-- **🌙 Modern Premium UI**: A sleek, dark-mode interface built with `customtkinter` for a professional desktop experience.
+- **🔍 Smart Search**: Quickly filter your recent conversations by name or phone number in real-time.
+- **🏠 Local AI Fallback (Ollama)**: Automatically fallback to a local **Ollama (llama3)** instance when Gemini is unavailable or rate-limited.
+- **⚡ Performance Tuned**: Optimized 10-second cooldowns for faster interaction cycles.
 - **📥 Chat Export**: Export your conversation histories to clean, well-formatted Markdown files for documentation or internal review.
-- **⚡ Rate Limiting**: Built-in protection to ensure smooth operation within GoTo and Google API quotas.
 
 ---
 
@@ -60,6 +61,7 @@
 
 Open the **Settings** menu within the app to configure:
 - **API Keys**: Insert your Gemini API keys (Free and Paid).
+- **Local AI**: Ensure **Ollama** is running on `localhost:11434` with `llama3` for the automatic fallback feature.
 - **GoTo Auth**: Follow the easy OAuth flow to link your account.
 - **Custom Prompt**: Fine-tune the AI's "personality" by editing the global system prompt.
 
