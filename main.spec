@@ -32,7 +32,17 @@ hiddenimports += [
     'tkinter.filedialog',
     'tkinter.messagebox',
     'threading',
+    'ui.main_window',
+    'ui.settings_window',
+    'ui.utils',
     'ui.import_preview',
+    'modules.config_manager',
+    'modules.contact_book',
+    'modules.gemini_ai',
+    'modules.auth_handler',
+    'modules.goto_api',
+    'modules.ollama_ai',
+    'modules.rate_limiter',
 ]
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
