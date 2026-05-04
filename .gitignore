@@ -2,34 +2,65 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # Virtual Environments
-.venv/
 venv/
+.venv/
 env/
 ENV/
+venv.bak/
+.env.bak/
 
 # IDEs and Editors
 .vscode/
 .idea/
 *.swp
 *.swo
+.project
+.pydevproject
+.settings/
 
-# Distribution / Build (PyInstaller)
-build/
-dist/
+# Testing
+.pytest_cache/
+.tox/
+.coverage
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
 
-# Project Specific (Local Data & Keys)
+# Project Specific (Local Data & Config)
 config.dat
-history.json
 config.json
 contacts.json
+history.json
+*.dat
 
-# Deployment Automation
-deploy.py
-C:/Users/carlo/Desktop/PKB Apps/SMS Companion/
+# PyInstaller (if used separately)
+*.spec
 
+# OS Specific
+.DS_Store
+Thumbs.db
+*.tmp
 
-# Logs and Temp
+# Logs
 *.log
-.temp/

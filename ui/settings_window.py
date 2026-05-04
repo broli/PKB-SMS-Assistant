@@ -18,7 +18,7 @@ class SettingsWindow(ctk.CTkToplevel):
         
         # Attempt to make it modal and stay on top
         self.attributes('-topmost', 1)
-        self.grab_set()
+        self.after(10, self.grab_set)
         
         self.config = config_manager.load_config()
         

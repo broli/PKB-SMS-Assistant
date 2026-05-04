@@ -1,3 +1,4 @@
 customtkinter>=5.2.2
-requests>=2.31.0
-google-genai>=0.5.0
+requests>=2.33.1
+google-genai>=1.0.0
+darkdetect>=0.3.4
