@@ -9,15 +9,16 @@ The following outlines the phased development goals for the PKB SMS Assistant.
 - [x] Mock implementations of GoTo API logic
 - [x] Rate limiter module
 
-## Phase 2: Live GoTo Integration (Current)
+## Phase 2: Live GoTo Integration (Completed)
 - [x] Implement the real GoTo Authentication OAuth token flow
 - [x] Connect the `get_sms_history` endpoint for live phone numbers
 - [x] Connect the `send_sms` endpoint to broadcast messages
 - [x] **New**: Added Conversation Search and Filtering
 - [x] **New**: Local Ollama (llama3) Fallback Integration
 - [x] **New**: Optimized 10s cooldowns for smoother UX
+- [x] **New**: Fixed Linux/Wayland UI scaling artifacts (v2.3)
 
-## Phase 3: Enhanced Stability & Feedback
+## Phase 3: Enhanced Stability & Feedback (Current)
 - [ ] Add loading spinners and improved GUI blocking during threaded API calls
 - [ ] Implement local app logging to track errors without printing to console
 - [ ] Better validation of phone number formats (E.164 compliance)
