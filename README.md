@@ -2,9 +2,9 @@
   <img src="pkb_sms_assistant_hero.png" width="800" alt="PKB SMS Assistant Banner">
 </p>
 
-# 💬 PKB SMS Assistant v2.2
+# 💬 PKB SMS Assistant v3.0
 
-**PKB SMS Assistant** is a modern, AI-powered desktop application designed to streamline SMS communication via the **GoTo Connect** platform. By leveraging the **Google Gemini Pro** model, it helps users draft professional, empathetic, and context-aware replies to client messages in seconds.
+**PKB SMS Assistant** is a professional, AI-powered desktop application built with **PySide6 (Qt)** to streamline SMS communication via the **GoTo Connect** platform. By leveraging the **Google Gemini Pro** model, it helps users draft context-aware, professional replies with native cross-platform performance.
 
 ---
 

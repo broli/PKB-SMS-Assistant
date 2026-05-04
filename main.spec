@@ -6,7 +6,7 @@ datas = []
 binaries = []
 hiddenimports = []
 
-for pkg in ('customtkinter', 'google.genai', 'requests'):
+for pkg in ('PySide6', 'google.genai', 'requests'):
     tmp = collect_all(pkg)
     datas    += tmp[0]
     binaries += tmp[1]
@@ -28,9 +28,6 @@ hiddenimports += [
     'webbrowser',
     'base64',
     'json',
-    'tkinter',
-    'tkinter.filedialog',
-    'tkinter.messagebox',
     'threading',
     'ui.import_preview',
 ]

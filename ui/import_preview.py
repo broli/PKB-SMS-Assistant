@@ -1,95 +1,118 @@
-import customtkinter as ctk
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+                               QPushButton, QScrollArea, QWidget)
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QFont
+
 from modules import contact_book
 
-class ImportPreviewWindow(ctk.CTkToplevel):
-    def __init__(self, parent, plan, on_confirm):
+class ImportPreviewWindow(QDialog):
+    import_confirmed = Signal(bool)
+
+    def __init__(self, plan, parent=None):
         super().__init__(parent)
-        self.title("Import Preview & Confirmation")
-        self.geometry("500x600")
+        self.setWindowTitle("Import Preview & Confirmation")
+        self.resize(500, 600)
+        self.setModal(True)
         
         self.plan = plan
-        self.on_confirm = on_confirm
         
-        # Modal setup
-        self.attributes('-topmost', 1)
-        self.grab_set()
-        
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        self.main_layout = QVBoxLayout(self)
 
-        # ── Header ──────────────────────────────────────────────────────────
-        self.header = ctk.CTkLabel(
-            self, text="📋 Contact Import Summary",
-            font=ctk.CTkFont(size=18, weight="bold")
-        )
-        self.header.grid(row=0, column=0, pady=20)
+        # Header
+        header_font = QFont()
+        header_font.setPointSize(14)
+        header_font.setBold(True)
+        self.header = QLabel("📋 Contact Import Summary")
+        self.header.setFont(header_font)
+        self.header.setAlignment(Qt.AlignCenter)
+        self.main_layout.addWidget(self.header)
+        self.main_layout.addSpacing(20)
 
-        # ── Stats Frame ──────────────────────────────────────────────────────
-        self.stats_frame = ctk.CTkFrame(self)
-        self.stats_frame.grid(row=1, column=0, sticky="nsew", padx=20, pady=(0, 20))
-        self.stats_frame.grid_columnconfigure(0, weight=1)
-
+        # Stats
         new_count = len(plan.get("new", {}))
         upd_count = len(plan.get("update", {}))
         pre_count = len(plan.get("preserve", {}))
         total     = plan.get("total_scanned", 0)
 
-        ctk.CTkLabel(self.stats_frame, text=f"Total lines scanned: {total}", font=ctk.CTkFont(weight="bold")).pack(pady=(10, 5))
+        total_font = QFont()
+        total_font.setBold(True)
+        total_lbl = QLabel(f"Total lines scanned: {total}")
+        total_lbl.setFont(total_font)
+        self.main_layout.addWidget(total_lbl)
         
-        # New
-        new_lbl = ctk.CTkLabel(self.stats_frame, text=f"✨ New contacts to add: {new_count}", text_color="#2da44e")
-        new_lbl.pack(anchor="w", padx=20)
+        new_lbl = QLabel(f"✨ New contacts to add: {new_count}")
+        new_lbl.setStyleSheet("color: #2da44e;")
+        self.main_layout.addWidget(new_lbl)
         
-        # Updates
-        upd_lbl = ctk.CTkLabel(self.stats_frame, text=f"🔄 Names to update (no nickname): {upd_count}", text_color="#f1c40f")
-        upd_lbl.pack(anchor="w", padx=20)
+        upd_lbl = QLabel(f"🔄 Names to update (no nickname): {upd_count}")
+        upd_lbl.setStyleSheet("color: #d4ac0d;")
+        self.main_layout.addWidget(upd_lbl)
         
-        # Preserved
-        pre_lbl = ctk.CTkLabel(self.stats_frame, text=f"🛡️ Preserved (existing nickname): {pre_count}", text_color="gray")
-        pre_lbl.pack(anchor="w", padx=20)
+        pre_lbl = QLabel(f"🛡️ Preserved (existing nickname): {pre_count}")
+        pre_lbl.setStyleSheet("color: gray;")
+        self.main_layout.addWidget(pre_lbl)
 
-        # Scrollable list for detail
-        self.detail_list = ctk.CTkScrollableFrame(self.stats_frame, height=250)
-        self.detail_list.pack(fill="both", expand=True, padx=10, pady=10)
+        # Details list
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_widget = QWidget()
+        self.scroll_layout = QVBoxLayout(self.scroll_widget)
+        self.scroll_area.setWidget(self.scroll_widget)
+        self.main_layout.addWidget(self.scroll_area, 1)
         
-        # Populate small sample or full list
         self._populate_details()
 
-        # ── Footer Buttons ──────────────────────────────────────────────────
-        self.btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.btn_frame.grid(row=2, column=0, sticky="ew", padx=20, pady=20)
-        self.btn_frame.grid_columnconfigure(0, weight=1)
-        self.btn_frame.grid_columnconfigure(1, weight=1)
-
-        self.cancel_btn = ctk.CTkButton(
-            self.btn_frame, text="Cancel", fg_color="#c0392b", hover_color="#a93226",
-            command=self.destroy
-        )
-        self.cancel_btn.grid(row=0, column=0, padx=(0, 5))
-
-        self.confirm_btn = ctk.CTkButton(
-            self.btn_frame, text="Confirm & Import", fg_color="#2da44e", hover_color="#2c974b",
-            command=self._do_confirm
-        )
-        self.confirm_btn.grid(row=0, column=1, padx=(5, 0))
+        # Footer Buttons
+        self.btn_layout = QHBoxLayout()
+        
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.clicked.connect(self.reject)
+        self.btn_layout.addWidget(self.cancel_btn)
+        
+        self.confirm_btn = QPushButton("Confirm & Import")
+        self.confirm_btn.setStyleSheet("background-color: #2da44e; color: white;")
+        self.confirm_btn.clicked.connect(self._do_confirm)
+        self.btn_layout.addWidget(self.confirm_btn)
+        
+        self.main_layout.addLayout(self.btn_layout)
 
     def _populate_details(self):
-        # Sample of new
-        if self.plan["new"]:
-            ctk.CTkLabel(self.detail_list, text="--- NEW ENTRIES ---", font=ctk.CTkFont(size=11, weight="bold")).pack(anchor="w")
-            for p, n in list(self.plan["new"].items())[:20]:
-                ctk.CTkLabel(self.detail_list, text=f"+ {n} ({p})", font=ctk.CTkFont(size=10)).pack(anchor="w", padx=5)
-            if len(self.plan["new"]) > 20:
-                ctk.CTkLabel(self.detail_list, text=f"... and {len(self.plan['new'])-20} more", font=ctk.CTkFont(size=9, slant="italic")).pack(anchor="w", padx=5)
+        font_bold = QFont()
+        font_bold.setPointSize(10)
+        font_bold.setBold(True)
+        font_small = QFont()
+        font_small.setPointSize(9)
 
-        # Sample of updates
+        if self.plan["new"]:
+            lbl = QLabel("--- NEW ENTRIES ---")
+            lbl.setFont(font_bold)
+            self.scroll_layout.addWidget(lbl)
+            
+            for p, n in list(self.plan["new"].items())[:20]:
+                item = QLabel(f"+ {n} ({p})")
+                item.setFont(font_small)
+                self.scroll_layout.addWidget(item)
+                
+            if len(self.plan["new"]) > 20:
+                more = QLabel(f"... and {len(self.plan['new'])-20} more")
+                font_italic = QFont(font_small)
+                font_italic.setItalic(True)
+                more.setFont(font_italic)
+                self.scroll_layout.addWidget(more)
+                
         if self.plan["update"]:
-            ctk.CTkLabel(self.detail_list, text="\n--- UPDATING NAMES ---", font=ctk.CTkFont(size=11, weight="bold")).pack(anchor="w")
+            lbl = QLabel("\n--- UPDATING NAMES ---")
+            lbl.setFont(font_bold)
+            self.scroll_layout.addWidget(lbl)
+            
             for p, d in list(self.plan["update"].items())[:20]:
-                ctk.CTkLabel(self.detail_list, text=f"~ {p}: {d['old'] or 'None'} -> {d['new']}", font=ctk.CTkFont(size=10)).pack(anchor="w", padx=5)
+                item = QLabel(f"~ {p}: {d['old'] or 'None'} -> {d['new']}")
+                item.setFont(font_small)
+                self.scroll_layout.addWidget(item)
+                
+        self.scroll_layout.addStretch()
 
     def _do_confirm(self):
         success = contact_book.apply_import_plan(self.plan)
-        if self.on_confirm:
-            self.on_confirm(success)
-        self.destroy()
+        self.import_confirmed.emit(success)
+        self.accept()
