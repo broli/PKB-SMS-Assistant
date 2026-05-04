@@ -53,6 +53,8 @@ config.json
 contacts.json
 history.json
 *.dat
+/modules/__pycache__
+/ui/__pycache__
 
 # PyInstaller (if used separately)
 *.spec

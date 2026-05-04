@@ -14,16 +14,18 @@ Before using the assistant, you must configure your API keys.
 5. Save the configuration. 
 
 ## 2. Fetching SMS History
-1. On the left side of the screen, enter the **Client Phone Number** (e.g., `+1234567890`).
-2. Click **Fetch SMS History**.
-3. The app will communicate with GoTo to fetch recent messages. *(Note: During current development, this fetches a mock history for illustration).*
-4. Read the chat history to understand the context of the conversation.
+1. Click **🔄 Refresh** (or wait for auto-load) to see your recent chats.
+2. Use the **🔍 Search** bar above the list to filter by name or phone number.
+3. Click a conversation row to select it. The search will automatically reset.
+4. Click **📨 Load Chat** to fetch the message history.
+5. Read the history to understand the context.
 
 ## 3. Drafting a Reply
 1. On the right side of the screen, select the **Desired Tone** from the dropdown menu (e.g., Professional, Empathetic).
 2. In the **Intent** box, type exactly what you want to convey in simple terms. Example: *"Tell the client we will push the deadline to Wednesday but need them to sign off on the design by tomorrow."*
 3. Click **✨ Generate AI Reply**.
-4. The draft will appear in the text box below. Note that there is a cooldown between consecutive AI generations to adhere to rate limits.
+4. The draft will appear in the text box below.
+5. **Local Fallback**: If "Use Paid" is enabled and your free Gemini key fails (e.g., rate limit), the app will automatically try to use a local **Ollama** instance (requires `llama3` model) before using your paid Gemini key.
 
 ## 4. Reviewing and Sending
 1. Review the generated response in the **Draft Reply (Editable)** text box. 
