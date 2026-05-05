@@ -29,8 +29,31 @@ def is_ollama_available():
     except Exception:
         return False
 
+def get_best_model():
+    """Queries Ollama for available models and returns the best llama3 match."""
+    try:
+        response = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
+        if response.status_code == 200:
+            models = response.json().get("models", [])
+            model_names = [m["name"] for m in models]
+            
+            # Prefer exact llama3 if it exists
+            if "llama3:latest" in model_names or "llama3" in model_names:
+                return "llama3"
+            
+            # Look for llama3.1 or others starting with llama3
+            for name in model_names:
+                if name.startswith("llama3.1"):
+                    return name
+                if "llama3" in name:
+                    return name
+                    
+        return DEFAULT_MODEL # Fallback to llama3
+    except Exception:
+        return DEFAULT_MODEL
+
 def generate_reply(chat_history, tone, intent, receiver_name="Receiver", custom_prompt=None):
-    """Uses local Ollama (llama3) to generate a response."""
+    """Uses local Ollama to generate a response."""
     try:
         base_prompt = custom_prompt if custom_prompt else DEFAULT_PROMPT
         
@@ -44,8 +67,9 @@ def generate_reply(chat_history, tone, intent, receiver_name="Receiver", custom_
         except KeyError as e:
             return f"Error in custom prompt: Missing placeholder {e}."
 
+        model = get_best_model()
         payload = {
-            "model": DEFAULT_MODEL,
+            "model": model,
             "prompt": prompt,
             "stream": False
         }
@@ -56,7 +80,11 @@ def generate_reply(chat_history, tone, intent, receiver_name="Receiver", custom_
             result = response.json()
             return result.get("response", "").strip()
         else:
-            return f"Error from Ollama: {response.status_code}"
+            try:
+                error_msg = response.json().get("error", "Unknown error")
+                return f"Error from Ollama ({response.status_code}): {error_msg}"
+            except:
+                return f"Error from Ollama: {response.status_code}"
             
     except Exception as e:
         return f"Error communicating with Ollama: {e}"
