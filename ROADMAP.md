@@ -9,26 +9,32 @@ The following outlines the phased development goals for the PKB SMS Assistant.
 - [x] Mock implementations of GoTo API logic
 - [x] Rate limiter module
 
-## Phase 2: Live GoTo Integration (Current)
+## Phase 2: Live GoTo Integration (Completed)
 - [x] Implement the real GoTo Authentication OAuth token flow
 - [x] Connect the `get_sms_history` endpoint for live phone numbers
 - [x] Connect the `send_sms` endpoint to broadcast messages
 - [x] **New**: Added Conversation Search and Filtering
 - [x] **New**: Local Ollama (llama3) Fallback Integration
 - [x] **New**: Optimized 10s cooldowns for smoother UX
+- [x] **New**: Fixed Linux/Wayland UI scaling artifacts (v2.3)
 
-## Phase 3: Microsoft Ecosystem Integration & Security
-- [ ] Implement Microsoft OAuth 2.0 Authentication (Company Account required)
-- [ ] **Secure Secret Management**: Host the Client Secret and token exchange on a Microsoft Serverless (Azure Function) backend
-- [ ] **Secure Gemini Proxy**: Route Gemini API calls through the serverless backend to keep the paid API key hidden from clients
-- [ ] Client Proxy Logic: App requests tokens and AI completions from the serverless backend instead of storing secrets locally
+## Phase 3: Qt Migration & Architectural Rewrite (Completed - v3.0)
+- [x] **PySide6 Migration**: Replaced CustomTkinter with Qt for native Linux/Wayland support.
+- [x] **Signals & Slots**: Re-implemented all background tasks using thread-safe Qt Signals.
+- [x] **Separation of Concerns**: Extracted threading logic into dedicated `ui/qt_workers.py`.
+- [x] **Native Aesthetics**: Adopted "Fusion" styling for a clean, professional cross-platform look.
+- [x] **Global Scaling**: Integrated reliable DPI scaling for high-resolution displays.
 
-## Phase 4: Team Deployment & Enterprise Readiness
-- [ ] **Centralized Logging**: Integrate Azure Application Insights to monitor team usage and errors
-- [ ] **Auto-Update Mechanism**: Implement a version check system to push updates to the team automatically
-- [ ] **Advanced Validation**: Better validation of phone number formats (E.164 compliance)
-- [ ] **Enterprise Installer**: Create an application icon and MSI installer using InnoSetup for easy distribution
+## Phase 4: Data Persistence & Advanced Features (Current)
+- [ ] **Data persistence**: Displaying last used phone numbers and session state.
+- [ ] **SQLite Caching**: Local storage of previous conversations to minimize GoTo API calls.
+- [ ] **Logging**: Implement local app logging to track errors without console noise.
+- [ ] **Validation**: Better E.164 phone number compliance checking.
 
-## Phase 5: Misc Improvements
-- [ ] Add loading spinners and improved GUI blocking during threaded API calls
-- [ ] Local storage (SQLite) caching of previous conversations to minimize API trips
+## Phase 5: Advanced Intelligence
+- [ ] **Context Awareness**: Incorporate project contexts directly into Gemini prompts (e.g., status docs).
+- [ ] **Multi-Tab Interface**: Support multiple ongoing conversation tabs simultaneously.
+
+## Phase 6: Distribution
+- [x] **Build Scripts**: Updated `main.spec` for PySide6 compatibility.
+- [ ] Standalone installer creation (InnoSetup).

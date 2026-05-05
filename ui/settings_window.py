@@ -1,182 +1,196 @@
-import customtkinter as ctk
-import threading
 import os
-from tkinter import filedialog, messagebox
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+                               QLineEdit, QTextEdit, QPushButton, QScrollArea, 
+                               QWidget, QFileDialog, QMessageBox, QFrame)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
+
 from modules import config_manager, contact_book
 from modules.gemini_ai import DEFAULT_PROMPT
-from modules.auth_handler import start_oauth_flow
-from ui.utils import add_context_menu
 from ui.import_preview import ImportPreviewWindow
+from ui.qt_workers import OAuthLoginWorker
 
-
-
-class SettingsWindow(ctk.CTkToplevel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.title("Settings - API Keys & Prompts")
-        self.geometry("600x750")
-        
-        # Attempt to make it modal and stay on top
-        self.attributes('-topmost', 1)
-        self.grab_set()
+class SettingsWindow(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Settings - API Keys & Prompts")
+        self.resize(600, 750)
+        self.setModal(True)
         
         self.config = config_manager.load_config()
+        self.worker = None # keep reference to thread
+
+        # Main Layout
+        self.main_layout = QVBoxLayout(self)
         
-        # Main Scrollable Frame
-        self.scroll_frame = ctk.CTkScrollableFrame(self)
-        self.scroll_frame.pack(fill="both", expand=True, padx=10, pady=10)
-        
+        # Scroll Area
+        self.scroll_area = QScrollArea(self)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_widget = QWidget()
+        self.scroll_layout = QVBoxLayout(self.scroll_widget)
+        self.scroll_area.setWidget(self.scroll_widget)
+        self.main_layout.addWidget(self.scroll_area)
+
         # Title
-        self.title_label = ctk.CTkLabel(self.scroll_frame, text="Configure Assistant Settings", font=ctk.CTkFont(size=18, weight="bold"))
-        self.title_label.pack(pady=15)
-        
+        title_font = QFont()
+        title_font.setPointSize(14)
+        title_font.setBold(True)
+        self.title_label = QLabel("Configure Assistant Settings")
+        self.title_label.setFont(title_font)
+        self.title_label.setAlignment(Qt.AlignCenter)
+        self.scroll_layout.addWidget(self.title_label)
+        self.scroll_layout.addSpacing(15)
+
         # GoTo OAuth Login
-        self.login_frame = ctk.CTkFrame(self.scroll_frame)
-        self.login_frame.pack(fill="x", padx=20, pady=5)
+        self.login_frame = QFrame()
+        self.login_layout = QHBoxLayout(self.login_frame)
+        self.login_layout.setContentsMargins(0, 0, 0, 0)
         
         has_token = bool(self.config.get("access_token"))
         status_text = "Status: Logged In" if has_token else "Status: Not Logged In"
-        self.login_status = ctk.CTkLabel(self.login_frame, text=status_text)
-        self.login_status.pack(side="left", padx=10, pady=10)
+        self.login_status = QLabel(status_text)
+        if has_token:
+            self.login_status.setStyleSheet("color: green;")
+        else:
+            self.login_status.setStyleSheet("color: red;")
+            
+        self.login_layout.addWidget(self.login_status)
+        self.login_layout.addStretch()
         
-        self.login_button = ctk.CTkButton(self.login_frame, text="Login with GoTo", command=self.do_login)
-        self.login_button.pack(side="right", padx=10, pady=10)
+        self.login_button = QPushButton("Login with GoTo")
+        self.login_button.clicked.connect(self.do_login)
+        self.login_layout.addWidget(self.login_button)
         
+        self.scroll_layout.addWidget(self.login_frame)
+        self.scroll_layout.addSpacing(10)
+
         # GoTo Phone Number
-        self.phone_var = ctk.StringVar(value=self.config.get("goto_phone", ""))
-        self.phone_label = ctk.CTkLabel(self.scroll_frame, text="GoTo Account Phone Number (From):")
-        self.phone_label.pack(anchor="w", padx=20, pady=(10,0))
-        self.phone_entry = ctk.CTkEntry(self.scroll_frame, textvariable=self.phone_var, width=500, placeholder_text="+1234567890")
-        self.phone_entry.pack(padx=20, pady=5)
-        add_context_menu(self.phone_entry)
-        
+        self.scroll_layout.addWidget(QLabel("GoTo Account Phone Number (From):"))
+        self.phone_entry = QLineEdit()
+        self.phone_entry.setPlaceholderText("+1234567890")
+        self.phone_entry.setText(self.config.get("goto_phone", ""))
+        self.scroll_layout.addWidget(self.phone_entry)
+        self.scroll_layout.addSpacing(10)
+
         # Gemini Free API Key
-        self.gemini_free_var = ctk.StringVar(value=self.config.get("gemini_api_key", ""))
-        self.gemini_free_label = ctk.CTkLabel(self.scroll_frame, text="Free Gemini API Key:")
-        self.gemini_free_label.pack(anchor="w", padx=20, pady=(10,0))
-        self.gemini_free_entry = ctk.CTkEntry(self.scroll_frame, textvariable=self.gemini_free_var, show="*", width=500)
-        self.gemini_free_entry.pack(padx=20, pady=5)
-        add_context_menu(self.gemini_free_entry)
+        self.scroll_layout.addWidget(QLabel("Free Gemini API Key:"))
+        self.gemini_free_entry = QLineEdit()
+        self.gemini_free_entry.setEchoMode(QLineEdit.Password)
+        self.gemini_free_entry.setText(self.config.get("gemini_api_key", ""))
+        self.scroll_layout.addWidget(self.gemini_free_entry)
+        self.scroll_layout.addSpacing(10)
 
         # Gemini Paid API Key
-        self.gemini_paid_var = ctk.StringVar(value=self.config.get("gemini_api_key_paid", ""))
-        self.gemini_paid_label = ctk.CTkLabel(self.scroll_frame, text="Paid Gemini API Key:")
-        self.gemini_paid_label.pack(anchor="w", padx=20, pady=(10,0))
-        self.gemini_paid_entry = ctk.CTkEntry(self.scroll_frame, textvariable=self.gemini_paid_var, show="*", width=500)
-        self.gemini_paid_entry.pack(padx=20, pady=5)
-        add_context_menu(self.gemini_paid_entry)
+        self.scroll_layout.addWidget(QLabel("Paid Gemini API Key:"))
+        self.gemini_paid_entry = QLineEdit()
+        self.gemini_paid_entry.setEchoMode(QLineEdit.Password)
+        self.gemini_paid_entry.setText(self.config.get("gemini_api_key_paid", ""))
+        self.scroll_layout.addWidget(self.gemini_paid_entry)
+        self.scroll_layout.addSpacing(15)
 
-        
         # AI Custom Prompt
-        self.prompt_label = ctk.CTkLabel(self.scroll_frame, text="Custom AI System Prompt:")
-        self.prompt_label.pack(anchor="w", padx=20, pady=(15,0))
-        
-        self.prompt_text = ctk.CTkTextbox(self.scroll_frame, height=200, width=500)
-        self.prompt_text.pack(padx=20, pady=10)
-        
+        self.scroll_layout.addWidget(QLabel("Custom AI System Prompt:"))
+        self.prompt_text = QTextEdit()
+        self.prompt_text.setMinimumHeight(200)
         current_prompt = self.config.get("custom_prompt") or DEFAULT_PROMPT
-        self.prompt_text.insert("0.0", current_prompt)
-        add_context_menu(self.prompt_text)
-        
-        self.reset_button = ctk.CTkButton(self.scroll_frame, text="Reset to Default Prompt", command=self.reset_prompt, fg_color="#34495e", hover_color="#2c3e50")
-        self.reset_button.pack(padx=20, pady=5)
+        self.prompt_text.setPlainText(current_prompt)
+        self.scroll_layout.addWidget(self.prompt_text)
 
-        # ── Contact Book ───────────────────────────────────────────────
-        self.contacts_sep = ctk.CTkLabel(self.scroll_frame, text="─" * 40, text_color="gray")
-        self.contacts_sep.pack(pady=(15, 0))
+        self.reset_button = QPushButton("Reset to Default Prompt")
+        self.reset_button.clicked.connect(self.reset_prompt)
+        self.scroll_layout.addWidget(self.reset_button)
+        self.scroll_layout.addSpacing(20)
 
-        self.contacts_label = ctk.CTkLabel(self.scroll_frame, text="Contact Book", font=ctk.CTkFont(size=14, weight="bold"))
-        self.contacts_label.pack(anchor="w", padx=20, pady=(8, 0))
+        # Contact Book Section
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setFrameShadow(QFrame.Sunken)
+        self.scroll_layout.addWidget(sep)
 
-        self.contacts_desc = ctk.CTkLabel(
-            self.scroll_frame,
-            text="Sync names from a GoTo copy-paste TXT file.",
-            text_color="gray",
-            justify="left"
-        )
-        self.contacts_desc.pack(anchor="w", padx=20, pady=(2, 10))
+        contacts_font = QFont()
+        contacts_font.setPointSize(12)
+        contacts_font.setBold(True)
+        self.contacts_label = QLabel("Contact Book")
+        self.contacts_label.setFont(contacts_font)
+        self.scroll_layout.addWidget(self.contacts_label)
 
-        self.import_btn = ctk.CTkButton(
-            self.scroll_frame, text="📂 Import from GoTo (.txt)",
-            command=self.open_import_file,
-            fg_color="#34495e", hover_color="#2c3e50"
-        )
-        self.import_btn.pack(padx=20, pady=(5, 15))
+        self.contacts_desc = QLabel("Sync names from a GoTo copy-paste TXT file.")
+        self.contacts_desc.setStyleSheet("color: gray;")
+        self.scroll_layout.addWidget(self.contacts_desc)
 
+        self.import_btn = QPushButton("📂 Import from GoTo (.txt)")
+        self.import_btn.clicked.connect(self.open_import_file)
+        self.scroll_layout.addWidget(self.import_btn)
 
-        # Save Button
-        self.save_button = ctk.CTkButton(self, text="Save Settings", command=self.save_settings)
-        self.save_button.pack(pady=20)
-        
+        self.scroll_layout.addStretch()
+
+        # Save Button (Bottom)
+        self.save_button = QPushButton("Save Settings")
+        self.save_button.setMinimumHeight(40)
+        self.save_button.clicked.connect(self.save_settings)
+        self.main_layout.addWidget(self.save_button)
 
     def reset_prompt(self):
-
-        self.prompt_text.delete("0.0", "end")
-        self.prompt_text.insert("0.0", DEFAULT_PROMPT)
+        self.prompt_text.setPlainText(DEFAULT_PROMPT)
 
     def do_login(self):
-        self.login_button.configure(state="disabled", text="Waiting in browser...")
-        # Start OAuth flow in a background thread so UI doesn't freeze
-        def login_thread():
-            success = start_oauth_flow()
-            # update UI
-            self.after(0, self.on_login_complete, success)
-        threading.Thread(target=login_thread, daemon=True).start()
+        self.login_button.setEnabled(False)
+        self.login_button.setText("Waiting in browser...")
+        
+        self.worker = OAuthLoginWorker()
+        self.worker.finished.connect(self.on_login_complete)
+        self.worker.start()
 
     def on_login_complete(self, success):
-        if not self.winfo_exists():
-            return
-        self.login_button.configure(state="normal", text="Login with GoTo")
+        self.login_button.setEnabled(True)
+        self.login_button.setText("Login with GoTo")
         if success:
-            self.login_status.configure(text="Status: Logged In", text_color="green")
-            # Reload config since auth handler saved the new tokens
+            self.login_status.setText("Status: Logged In")
+            self.login_status.setStyleSheet("color: green;")
             self.config = config_manager.load_config()
         else:
-            self.login_status.configure(text="Status: Login Failed", text_color="red")
-            
+            self.login_status.setText("Status: Login Failed")
+            self.login_status.setStyleSheet("color: red;")
+
     def open_import_file(self):
-        path = filedialog.askopenfilename(
-            title="Select Raw GoTo Contacts Text File",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Raw GoTo Contacts Text File", "", "Text files (*.txt);;All files (*.*)"
         )
         if not path:
             return
             
-        # Run analysis (delta)
         plan = contact_book.analyze_raw_text(path)
         
         total_changes = len(plan["new"]) + len(plan["update"])
         if total_changes == 0 and plan["total_scanned"] > 0:
-            messagebox.showinfo("Import Information", "No new contacts or updates found. Your list is already up to date!")
+            QMessageBox.information(self, "Import Information", "No new contacts or updates found. Your list is already up to date!")
             return
         elif plan["total_scanned"] == 0:
-            messagebox.showwarning("Import Warning", "The file appears to be empty or invalid.")
+            QMessageBox.warning(self, "Import Warning", "The file appears to be empty or invalid.")
             return
 
-        # Show preview modal
-        ImportPreviewWindow(self, plan, on_confirm=self._on_import_confirmed)
+        self.preview_window = ImportPreviewWindow(plan, parent=self)
+        self.preview_window.import_confirmed.connect(self._on_import_confirmed)
+        self.preview_window.exec()
 
     def _on_import_confirmed(self, success):
         if success:
-            messagebox.showinfo("Import Successful", "Contacts merged successfully!")
-            # Trigger main window to reload contacts if UI exists
-            if hasattr(self.master, "_contacts"):
-                self.master._contacts = contact_book.load_contacts()
-                if hasattr(self.master, "fetch_recent_chats"):
-                    self.master.fetch_recent_chats()
+            QMessageBox.information(self, "Import Successful", "Contacts merged successfully!")
+            # The parent main window will need a way to refresh contacts
+            if hasattr(self.parent(), "reload_contacts"):
+                self.parent().reload_contacts()
         else:
-            messagebox.showerror("Import Error", "Failed to save contacts. Check console for details.")
+            QMessageBox.critical(self, "Import Error", "Failed to save contacts. Check console for details.")
 
     def save_settings(self):
         new_config = {
             "access_token": self.config.get("access_token", ""),
             "refresh_token": self.config.get("refresh_token", ""),
-            "goto_phone": self.phone_var.get(),
-            "gemini_api_key": self.gemini_free_var.get(),
-            "gemini_api_key_paid": self.gemini_paid_var.get(),
-            "custom_prompt": self.prompt_text.get("0.0", "end").strip()
+            "goto_phone": self.phone_entry.text(),
+            "gemini_api_key": self.gemini_free_entry.text(),
+            "gemini_api_key_paid": self.gemini_paid_entry.text(),
+            "custom_prompt": self.prompt_text.toPlainText().strip()
         }
 
         config_manager.save_config(new_config)
-        self.destroy()
-
+        self.accept()

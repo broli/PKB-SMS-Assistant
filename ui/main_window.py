@@ -1,392 +1,255 @@
-import customtkinter as ctk
 import os
-import threading
-from tkinter import filedialog, messagebox
+from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+                               QLabel, QLineEdit, QTextEdit, QPushButton, QComboBox,
+                               QScrollArea, QFrame, QMessageBox, QCheckBox, QInputDialog)
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QFont, QIcon
+
 from ui.settings_window import SettingsWindow
-from ui.utils import add_context_menu, resource_path
-from modules import config_manager, rate_limiter, goto_api, gemini_ai, contact_book, ollama_ai
+from modules import config_manager, rate_limiter, contact_book
+from ui.qt_workers import FetchRecentChatsWorker, FetchSMSWorker, GenerateReplyWorker, SendSMSWorker
 
+PRIMARY_BLUE = "#1976D2"
 
+def resource_path(relative_path):
+    import sys
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
 
-class MainWindow(ctk.CTk):
+class MainWindow(QMainWindow):
     def __init__(self, version=""):
         super().__init__()
         title = f"GoTo SMS AI Assistant v{version}" if version else "GoTo SMS AI Assistant"
-        self.title(title)
-        self.geometry("1200x720")
-        self.minsize(900, 600)
+        self.setWindowTitle(title)
+        self.resize(1200, 720)
+        self.setMinimumSize(900, 600)
 
-        # Set window icon
-        try:
-            icon_path = resource_path("app.ico")
-            if os.path.exists(icon_path):
-                self.iconbitmap(icon_path)
-        except Exception:
-            pass
+        icon_path = resource_path("app.ico")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
-        # ── Active contact state ───────────────────────────────────────────────
-        self._active_phone = ""   # phone selected from recent-chats tower
-        self._contacts     = contact_book.load_contacts()  # local name cache
-        self._all_conversations = []  # store fetched convos for filtering
+        self._active_phone = ""
+        self._contacts = contact_book.load_contacts()
+        self._all_conversations = []
+        self._workers = []
 
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QVBoxLayout(self.central_widget)
 
-        # ── Root grid: 1 header row + 1 main row + 1 status row ──────────────
-        #    3 columns: [left tower] [chat history] [AI builder]
-        self.grid_rowconfigure(0, weight=0)   # header
-        self.grid_rowconfigure(1, weight=1)   # main content
-        self.grid_rowconfigure(2, weight=0)   # status bar
-        self.grid_columnconfigure(0, weight=2)  # left tower
-        self.grid_columnconfigure(1, weight=3)  # middle: chat history
-        self.grid_columnconfigure(2, weight=3)  # right: AI panel
+        self._setup_header()
 
-        # ══════════════════════════════════════════════════════════════════════
-        # HEADER
-        # ══════════════════════════════════════════════════════════════════════
-        self.header_frame = ctk.CTkFrame(self)
-        self.header_frame.grid(row=0, column=0, columnspan=3, sticky="ew", padx=10, pady=(10, 5))
+        self.body_layout = QHBoxLayout()
+        self.main_layout.addLayout(self.body_layout, 1)
 
-        self.header_label = ctk.CTkLabel(
-            self.header_frame,
-            text="💬 GoTo SMS AI Assistant",
-            font=ctk.CTkFont(size=20, weight="bold")
-        )
-        self.header_label.pack(side="left", padx=10, pady=8)
+        self._setup_left_tower()
+        self._setup_middle_panel()
+        self._setup_right_panel()
+        self._setup_status_bar()
 
-        self.settings_btn = ctk.CTkButton(
-            self.header_frame, text="⚙️ Settings",
-            command=self.open_settings, width=100
-        )
-        self.settings_btn.pack(side="right", padx=10, pady=8)
+        self.cooldown_timer = QTimer(self)
+        self.cooldown_timer.timeout.connect(self._update_cooldown_monitor)
+        self.cooldown_timer.start(1000)
 
-        # ══════════════════════════════════════════════════════════════════════
-        # LEFT TOWER — Recent Chats
-        # ══════════════════════════════════════════════════════════════════════
-        self.left_frame = ctk.CTkFrame(self)
-        self.left_frame.grid(row=1, column=0, sticky="nsew", padx=(10, 5), pady=(0, 5))
-        self.left_frame.grid_rowconfigure(2, weight=1)  # list grows
-        self.left_frame.grid_columnconfigure(0, weight=1)
+        QTimer.singleShot(500, self.fetch_recent_chats)
 
-        self.recent_header = ctk.CTkLabel(
-            self.left_frame, text="Recent Chats",
-            font=ctk.CTkFont(size=14, weight="bold")
-        )
-        self.recent_header.grid(row=0, column=0, sticky="w", padx=10, pady=(10, 2))
+    def _setup_header(self):
+        header_frame = QFrame()
+        header_layout = QHBoxLayout(header_frame)
+        
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+        lbl = QLabel("💬 GoTo SMS AI Assistant")
+        lbl.setFont(font)
+        header_layout.addWidget(lbl)
+        
+        header_layout.addStretch()
+        
+        self.settings_btn = QPushButton("⚙️ Settings")
+        self.settings_btn.clicked.connect(self.open_settings)
+        header_layout.addWidget(self.settings_btn)
+        
+        self.main_layout.addWidget(header_frame)
 
-        self.refresh_btn = ctk.CTkButton(
-            self.left_frame, text="🔄 Refresh",
-            command=self.fetch_recent_chats, height=28
-        )
-        self.refresh_btn.grid(row=0, column=0, sticky="e", padx=10, pady=(10, 2))
+    def _setup_left_tower(self):
+        left_frame = QFrame()
+        left_layout = QVBoxLayout(left_frame)
+        self.body_layout.addWidget(left_frame, 2)
+        
+        header_layout = QHBoxLayout()
+        font = QFont()
+        font.setBold(True)
+        font.setPointSize(12)
+        lbl = QLabel("Recent Chats")
+        lbl.setFont(font)
+        header_layout.addWidget(lbl)
+        
+        self.refresh_btn = QPushButton("🔄 Refresh")
+        self.refresh_btn.setStyleSheet(f"background-color: {PRIMARY_BLUE}; color: white; font-weight: bold;")
+        self.refresh_btn.clicked.connect(self.fetch_recent_chats)
+        header_layout.addWidget(self.refresh_btn)
+        left_layout.addLayout(header_layout)
+        
+        self.search_entry = QLineEdit()
+        self.search_entry.setPlaceholderText("🔍 Search conversation...")
+        self.search_entry.textChanged.connect(self._filter_conversations)
+        left_layout.addWidget(self.search_entry)
+        
+        self.chat_list_area = QScrollArea()
+        self.chat_list_area.setWidgetResizable(True)
+        self.chat_list_widget = QWidget()
+        self.chat_list_layout = QVBoxLayout(self.chat_list_widget)
+        self.chat_list_layout.setAlignment(Qt.AlignTop)
+        self.chat_list_area.setWidget(self.chat_list_widget)
+        left_layout.addWidget(self.chat_list_area, 1)
 
-        # Search Entry
-        self.search_entry = ctk.CTkEntry(
-            self.left_frame, placeholder_text="🔍 Search conversation...",
-            height=28
-        )
-        self.search_entry.grid(row=1, column=0, sticky="ew", padx=10, pady=(2, 5))
-        self.search_entry.bind("<KeyRelease>", self._on_search_change)
-        add_context_menu(self.search_entry)
+    def _setup_middle_panel(self):
+        mid_frame = QFrame()
+        mid_layout = QVBoxLayout(mid_frame)
+        self.body_layout.addWidget(mid_frame, 3)
+        
+        contact_bar = QHBoxLayout()
+        self.active_contact_label = QLabel("No contact selected")
+        self.active_contact_label.setStyleSheet("color: gray; font-weight: bold;")
+        contact_bar.addWidget(self.active_contact_label)
+        
+        contact_bar.addStretch()
+        
+        self.receiver_entry = QLineEdit()
+        self.receiver_entry.setPlaceholderText("Nickname (optional)")
+        self.receiver_entry.setFixedWidth(160)
+        contact_bar.addWidget(self.receiver_entry)
+        mid_layout.addLayout(contact_bar)
+        
+        btn_row = QHBoxLayout()
+        self.fetch_btn = QPushButton("📨 Load Chat")
+        self.fetch_btn.setMinimumHeight(34)
+        self.fetch_btn.setStyleSheet(f"background-color: {PRIMARY_BLUE}; color: white; font-weight: bold;")
+        self.fetch_btn.clicked.connect(self.fetch_sms)
+        btn_row.addWidget(self.fetch_btn)
+        
+        self.export_btn = QPushButton("📥 Export")
+        self.export_btn.setMinimumHeight(34)
+        self.export_btn.setStyleSheet(f"background-color: {PRIMARY_BLUE}; color: white; font-weight: bold;")
+        self.export_btn.clicked.connect(self.export_history)
+        btn_row.addWidget(self.export_btn)
+        mid_layout.addLayout(btn_row)
+        
+        self.history_text = QTextEdit()
+        self.history_text.setReadOnly(True)
+        self.history_text.setPlainText("Select a contact from the left panel to load chat history...")
+        mid_layout.addWidget(self.history_text, 1)
 
-        # Scrollable list of conversations
-        self.chat_list_frame = ctk.CTkScrollableFrame(self.left_frame)
-        self.chat_list_frame.grid(row=2, column=0, sticky="nsew", padx=5, pady=(2, 5))
-        self.chat_list_frame.grid_columnconfigure(0, weight=1)
+    def _setup_right_panel(self):
+        right_frame = QFrame()
+        right_layout = QVBoxLayout(right_frame)
+        self.body_layout.addWidget(right_frame, 3)
+        
+        right_layout.addWidget(QLabel("Desired Tone:"))
+        
+        self.tone_combo = QComboBox()
+        self.tone_combo.addItems(["Professional", "Casual", "Empathetic", "Direct", "Apologetic"])
+        right_layout.addWidget(self.tone_combo)
+        right_layout.addSpacing(10)
+        
+        right_layout.addWidget(QLabel("What do you want to say?"))
+        self.intent_text = QTextEdit()
+        right_layout.addWidget(self.intent_text, 1)
+        
+        gen_btn_layout = QHBoxLayout()
+        self.generate_btn = QPushButton("✨ Generate AI Reply")
+        self.generate_btn.setStyleSheet(f"background-color: {PRIMARY_BLUE}; color: white; font-weight: bold;")
+        self.generate_btn.clicked.connect(self.generate_reply)
+        gen_btn_layout.addWidget(self.generate_btn, 1)
+        
+        self.use_paid_cb = QCheckBox("Use Paid")
+        gen_btn_layout.addWidget(self.use_paid_cb)
+        right_layout.addLayout(gen_btn_layout)
+        
+        right_layout.addWidget(QLabel("Draft Reply (Editable):"))
+        self.draft_text = QTextEdit()
+        right_layout.addWidget(self.draft_text, 2)
+        
+        self.send_btn = QPushButton("📤 Send SMS")
+        self.send_btn.setStyleSheet("background-color: #2da44e; color: white;")
+        self.send_btn.setMinimumHeight(34)
+        self.send_btn.clicked.connect(self.send_sms)
+        right_layout.addWidget(self.send_btn)
 
-        self._chat_row_widgets = []   # keep references to avoid GC
+    def _setup_status_bar(self):
+        status_frame = QFrame()
+        status_layout = QHBoxLayout(status_frame)
+        status_layout.setContentsMargins(10, 0, 10, 5)
+        
+        self.status_label = QLabel("Ready")
+        status_layout.addWidget(self.status_label)
+        
+        status_layout.addStretch()
+        
+        font = QFont("Consolas", 10)
+        self.cooldown_label = QLabel("AI: 0s | GoTo: 0s")
+        self.cooldown_label.setFont(font)
+        status_layout.addWidget(self.cooldown_label)
+        
+        self.main_layout.addWidget(status_frame)
 
-        # ══════════════════════════════════════════════════════════════════════
-        # MIDDLE PANEL — Chat History
-        # ══════════════════════════════════════════════════════════════════════
-        self.mid_frame = ctk.CTkFrame(self)
-        self.mid_frame.grid(row=1, column=1, sticky="nsew", padx=5, pady=(0, 5))
-        self.mid_frame.grid_rowconfigure(1, weight=0)
-        self.mid_frame.grid_columnconfigure(0, weight=1)
-
-        # Contact identity bar
-        self.contact_bar = ctk.CTkFrame(self.mid_frame, fg_color="transparent")
-        self.contact_bar.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
-        self.contact_bar.grid_columnconfigure(1, weight=1)
-
-        self.active_contact_label = ctk.CTkLabel(
-            self.contact_bar, text="No contact selected",
-            font=ctk.CTkFont(size=12, weight="bold"), text_color="gray"
-        )
-        self.active_contact_label.grid(row=0, column=0, sticky="w")
-
-        self.receiver_entry = ctk.CTkEntry(
-            self.contact_bar, placeholder_text="Nickname (optional)",
-            width=160
-        )
-        self.receiver_entry.grid(row=0, column=1, sticky="e", padx=(10, 0))
-        add_context_menu(self.receiver_entry)
-
-        # Action buttons row
-        self.mid_btn_row = ctk.CTkFrame(self.mid_frame, fg_color="transparent")
-        self.mid_btn_row.grid(row=1, column=0, sticky="ew", padx=10, pady=(2, 0))
-        self.mid_btn_row.grid_columnconfigure(0, weight=1)
-        self.mid_btn_row.grid_columnconfigure(1, weight=1)
-
-        self.fetch_btn = ctk.CTkButton(
-            self.mid_btn_row, text="📨 Load Chat",
-            command=self.fetch_sms, height=34
-        )
-        self.fetch_btn.grid(row=0, column=0, sticky="ew", padx=(0, 3))
-
-        self.export_btn = ctk.CTkButton(
-            self.mid_btn_row, text="📥 Export",
-            command=self.export_history,
-            fg_color="#34495e", hover_color="#2c3e50", height=34
-        )
-        self.export_btn.grid(row=0, column=1, sticky="ew", padx=(3, 0))
-
-        # Chat history textbox
-        self.history_text = ctk.CTkTextbox(self.mid_frame, wrap="word")
-        self.history_text.grid(row=2, column=0, sticky="nsew", padx=10, pady=(4, 10))
-        self.mid_frame.grid_rowconfigure(2, weight=1)
-        self.history_text.insert("0.0", "Select a contact from the left panel to load chat history...")
-        self.history_text.configure(state="disabled")
-        add_context_menu(self.history_text)
-
-        # Colour tags
-        inner_text = self.history_text._textbox
-        inner_text.tag_config("user_label",   justify="right", foreground="#4caf50")
-        inner_text.tag_config("user_body",    justify="right", foreground="#ffffff")
-        inner_text.tag_config("client_label", justify="left",  foreground="#90caf9")
-        inner_text.tag_config("client_body",  justify="left",  foreground="#dddddd")
-        inner_text.tag_config("system_msg",   justify="center",foreground="#888888")
-
-        # ══════════════════════════════════════════════════════════════════════
-        # RIGHT PANEL — AI Builder (full height)
-        # ══════════════════════════════════════════════════════════════════════
-        self.right_frame = ctk.CTkFrame(self)
-        self.right_frame.grid(row=1, column=2, sticky="nsew", padx=(5, 10), pady=(0, 5))
-        self.right_frame.grid_rowconfigure(2, weight=1)   # intent box grows
-        self.right_frame.grid_rowconfigure(4, weight=2)   # draft box grows more
-        self.right_frame.grid_columnconfigure(0, weight=1)
-
-        # Tone
-        self.tone_label = ctk.CTkLabel(self.right_frame, text="Desired Tone:")
-        self.tone_label.grid(row=0, column=0, sticky="w", padx=10, pady=(10, 0))
-
-        self.tone_var = ctk.StringVar(value="Professional")
-        self.tone_combo = ctk.CTkComboBox(
-            self.right_frame,
-            values=["Professional", "Casual", "Empathetic", "Direct", "Apologetic"],
-            variable=self.tone_var
-        )
-        self.tone_combo.grid(row=1, column=0, sticky="ew", padx=10, pady=(2, 0))
-
-        # Intent
-        self.intent_label = ctk.CTkLabel(self.right_frame, text="What do you want to say?")
-        self.intent_label.grid(row=2, column=0, sticky="w", padx=10, pady=(10, 0))
-
-        self.intent_text = ctk.CTkTextbox(self.right_frame, wrap="word")
-        self.intent_text.grid(row=2, column=0, sticky="nsew", padx=10, pady=(28, 0))
-        add_context_menu(self.intent_text)
-
-        # Generate button + Use Paid toggle
-        self.gen_btn_frame = ctk.CTkFrame(self.right_frame, fg_color="transparent")
-        self.gen_btn_frame.grid(row=3, column=0, sticky="ew", padx=10, pady=10)
-        self.gen_btn_frame.grid_columnconfigure(0, weight=1)
-
-        self.generate_btn = ctk.CTkButton(
-            self.gen_btn_frame, text="✨ Generate AI Reply",
-            command=self.generate_reply
-        )
-        self.generate_btn.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-
-        self.use_paid_var = ctk.BooleanVar(value=False)
-        self.use_paid_switch = ctk.CTkSwitch(
-            self.gen_btn_frame, text="Use Paid",
-            variable=self.use_paid_var,
-            font=ctk.CTkFont(size=12)
-        )
-        self.use_paid_switch.grid(row=0, column=1, sticky="e")
-
-        # Draft reply
-        self.draft_label = ctk.CTkLabel(self.right_frame, text="Draft Reply (Editable):")
-        self.draft_label.grid(row=4, column=0, sticky="w", padx=10, pady=(4, 0))
-
-        self.draft_text = ctk.CTkTextbox(self.right_frame, wrap="word")
-        self.draft_text.grid(row=4, column=0, sticky="nsew", padx=10, pady=(22, 0))
-        add_context_menu(self.draft_text)
-
-        # Send button
-        self.send_btn = ctk.CTkButton(
-            self.right_frame, text="📤 Send SMS",
-            command=self.send_sms,
-            fg_color="#2da44e", hover_color="#2c974b"
-        )
-        self.send_btn.grid(row=5, column=0, sticky="ew", padx=10, pady=(6, 12))
-
-        # ══════════════════════════════════════════════════════════════════════
-        # STATUS BAR
-        # ══════════════════════════════════════════════════════════════════════
-        self.status_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.status_frame.grid(row=2, column=0, columnspan=3, sticky="ew", padx=10, pady=(0, 6))
-        self.status_frame.grid_columnconfigure(0, weight=1)
-
-        self.status_label = ctk.CTkLabel(self.status_frame, text="Ready", anchor="w")
-        self.status_label.grid(row=0, column=0, sticky="w")
-
-        self.cooldown_label = ctk.CTkLabel(
-            self.status_frame, text="AI: 0s | GoTo: 0s",
-            anchor="e", font=ctk.CTkFont(family="Consolas", size=12)
-        )
-        self.cooldown_label.grid(row=0, column=1, sticky="e")
-
-        # Start cooldown monitor & auto-load recent chats
-        self._update_cooldown_monitor()
-        self.after(500, self.fetch_recent_chats)
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # COOLDOWN MONITOR
-    # ══════════════════════════════════════════════════════════════════════════
     def _update_cooldown_monitor(self):
-        ai_cd   = rate_limiter.get_remaining_cooldown(key="last_ai_call",   cooldown_seconds=rate_limiter.AI_COOLDOWN_SECONDS)
+        ai_cd = rate_limiter.get_remaining_cooldown(key="last_ai_call", cooldown_seconds=rate_limiter.AI_COOLDOWN_SECONDS)
         goto_cd = rate_limiter.get_remaining_cooldown(key="last_goto_pull", cooldown_seconds=rate_limiter.GOTO_COOLDOWN_SECONDS)
-        self.cooldown_label.configure(text=f"AI: {ai_cd}s | GoTo: {goto_cd}s")
-        color = "#f1c40f" if (ai_cd > 0 or goto_cd > 0) else "gray"
-        self.cooldown_label.configure(text_color=color)
-        self.after(1000, self._update_cooldown_monitor)
+        self.cooldown_label.setText(f"AI: {ai_cd}s | GoTo: {goto_cd}s")
+        if ai_cd > 0 or goto_cd > 0:
+            self.cooldown_label.setStyleSheet("color: #d4ac0d;")
+        else:
+            self.cooldown_label.setStyleSheet("color: gray;")
 
     def open_settings(self):
-        SettingsWindow(self)
+        dialog = SettingsWindow(self)
+        dialog.exec()
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # RECENT CHATS TOWER
-    # ══════════════════════════════════════════════════════════════════════════
+    def reload_contacts(self):
+        self._contacts = contact_book.load_contacts()
+        self.fetch_recent_chats()
+
     def fetch_recent_chats(self):
-        self.refresh_btn.configure(state="disabled")
-        self.status_label.configure(text="Loading recent chats...")
+        self.refresh_btn.setEnabled(False)
+        self.status_label.setText("Loading recent chats...")
+        
+        worker = FetchRecentChatsWorker()
+        worker.finished.connect(self._on_recent_chats_fetched)
+        self._workers.append(worker)
+        worker.start()
 
-        def _fetch():
-            gapi = goto_api.GoToAPI()
-            result = gapi.get_recent_conversations()
+    def _on_recent_chats_fetched(self, result):
+        self._clear_chat_list()
+        
+        if "error" in result:
+            lbl = QLabel(result["error"])
+            lbl.setStyleSheet("color: red;")
+            lbl.setWordWrap(True)
+            self.chat_list_layout.addWidget(lbl)
+            self.status_label.setText("Error loading recent chats.")
+        else:
+            self._all_conversations = result.get("conversations", [])
+            self._filter_conversations()
 
-            def _update_ui():
-                if not self.winfo_exists():
-                    return
-                # Clear current list
-                for w in self._chat_row_widgets:
-                    if w.winfo_exists():
-                        w.destroy()
-                self._chat_row_widgets.clear()
+        self.refresh_btn.setEnabled(True)
+        self._cleanup_workers()
 
-                if "error" in result:
-                    err_label = ctk.CTkLabel(
-                        self.chat_list_frame,
-                        text=result["error"],
-                        text_color="red", wraplength=180
-                    )
-                    err_label.grid(row=0, column=0, padx=8, pady=4, sticky="w")
-                    self._chat_row_widgets.append(err_label)
-                    self.status_label.configure(text="Error loading recent chats.")
-                else:
-                    self._all_conversations = result.get("conversations", [])
-                    self._filter_conversations()
-
-                self.refresh_btn.configure(state="normal")
-
-            self.after(0, _update_ui)
-
-        threading.Thread(target=_fetch, daemon=True).start()
-
-
-    def _add_chat_row(self, row_idx, convo):
-        """Creates one clickable row in the recent-chats tower."""
-        phone      = convo.get("phone", "Unknown")
-        unread     = convo.get("unread_count", 0)
-
-        display    = contact_book.get_display_name(phone, self._contacts)
-        badge      = f"  🔴 {unread}" if unread > 0 else ""
-        label      = f"{display}{badge}"
-
-        row_frame = ctk.CTkFrame(self.chat_list_frame, fg_color="transparent")
-        row_frame.grid(row=row_idx * 2, column=0, sticky="ew", padx=4, pady=(4, 0))
-        row_frame.grid_columnconfigure(0, weight=1)
-
-        # Main clickable button (name / phone)
-        btn = ctk.CTkButton(
-            row_frame,
-            text=label,
-            command=lambda p=phone: self._select_contact(p),
-            anchor="w",
-            fg_color="transparent",
-            hover_color=("gray75", "gray30"),
-            text_color=("#1a1a1a", "#ffffff"),
-            font=ctk.CTkFont(size=12, weight="bold" if unread > 0 else "normal"),
-            height=34
-        )
-        btn.grid(row=0, column=0, sticky="ew")
-
-        # Inline ✏️ nickname edit button
-        edit_btn = ctk.CTkButton(
-            row_frame, text="✏️", width=28, height=28,
-            fg_color="transparent", hover_color=("gray80", "gray25"),
-            command=lambda p=phone, rf=row_frame, rb=btn: self._open_nickname_editor(p, rf, rb)
-        )
-        edit_btn.grid(row=0, column=1, padx=(0, 4))
-
-        sep = ctk.CTkFrame(self.chat_list_frame, height=1, fg_color=("gray80", "gray30"))
-        sep.grid(row=row_idx * 2 + 1, column=0, sticky="ew", padx=4)
-
-        self._chat_row_widgets.extend([row_frame, sep])
-
-
-    def _open_nickname_editor(self, phone, row_frame, main_btn):
-        """Inline nickname editor that overlays the contact row."""
-        # Get current nickname
-        cur = self._contacts.get(phone, {}).get("nickname", "")
-
-        edit_frame = ctk.CTkFrame(self.chat_list_frame)
-        edit_frame.grid(row=main_btn.grid_info().get("row", 0), column=0,
-                        columnspan=2, sticky="ew", padx=4)
-        edit_frame.grid_columnconfigure(0, weight=1)
-        self._chat_row_widgets.append(edit_frame)
-
-        entry = ctk.CTkEntry(edit_frame, placeholder_text="Enter nickname...", height=28)
-        entry.insert(0, cur)
-        entry.grid(row=0, column=0, sticky="ew", padx=(4, 2), pady=4)
-        add_context_menu(entry)
-
-        def _save():
-            new_nick = entry.get().strip()
-            self._contacts = contact_book.set_nickname(phone, new_nick, self._contacts)
-            display = contact_book.get_display_name(phone, self._contacts)
-            main_btn.configure(text=display + (f"  🔴" if "🔴" in main_btn.cget("text") else ""))
-            edit_frame.destroy()
-
-        def _cancel():
-            edit_frame.destroy()
-
-        save_b = ctk.CTkButton(edit_frame, text="✓", width=28, height=28,
-                               fg_color="#2da44e", hover_color="#2c974b", command=_save)
-        save_b.grid(row=0, column=1, padx=2, pady=4)
-
-        cancel_b = ctk.CTkButton(edit_frame, text="✕", width=28, height=28,
-                                 fg_color="#c0392b", hover_color="#a93226", command=_cancel)
-        cancel_b.grid(row=0, column=2, padx=(0, 4), pady=4)
-
-        entry.focus()
-
-
-    def _on_search_change(self, event=None):
-        """Callback for search entry typing."""
-        self._filter_conversations()
-
+    def _clear_chat_list(self):
+        for i in reversed(range(self.chat_list_layout.count())): 
+            widget_to_remove = self.chat_list_layout.itemAt(i).widget()
+            if widget_to_remove is not None:
+                widget_to_remove.setParent(None)
+                widget_to_remove.deleteLater()
 
     def _filter_conversations(self):
-        """Filters the cached conversation list based on search entry text."""
-        query = self.search_entry.get().lower().strip()
-        
-        # Clear current UI rows
-        for w in self._chat_row_widgets:
-            if w.winfo_exists():
-                w.destroy()
-        self._chat_row_widgets.clear()
+        query = self.search_entry.text().lower().strip()
+        self._clear_chat_list()
 
-        # Filter
         filtered = []
         for convo in self._all_conversations:
             phone = convo.get("phone", "Unknown")
@@ -394,52 +257,71 @@ class MainWindow(ctk.CTk):
             if query in phone.lower() or query in display:
                 filtered.append(convo)
 
-        # Render
         if not filtered:
             msg = "No conversations found." if self._all_conversations else "No recent conversations found."
             if query and self._all_conversations:
                 msg = f"No matches for '{query}'"
-                
-            empty = ctk.CTkLabel(
-                self.chat_list_frame,
-                text=msg,
-                text_color="gray"
-            )
-            empty.grid(row=0, column=0, padx=8, pady=8, sticky="w")
-            self._chat_row_widgets.append(empty)
+            lbl = QLabel(msg)
+            lbl.setStyleSheet("color: gray;")
+            self.chat_list_layout.addWidget(lbl)
         else:
-            for idx, convo in enumerate(filtered):
-                self._add_chat_row(idx, convo)
+            for convo in filtered:
+                self._add_chat_row(convo)
 
-        # Update status if filtering
         if query:
-            self.status_label.configure(text=f"Found {len(filtered)} matches.")
+            self.status_label.setText(f"Found {len(filtered)} matches.")
         elif self._all_conversations:
-            self.status_label.configure(text=f"Loaded {len(self._all_conversations)} recent conversations.")
+            self.status_label.setText(f"Loaded {len(self._all_conversations)} recent conversations.")
 
+    def _add_chat_row(self, convo):
+        phone = convo.get("phone", "Unknown")
+        unread = convo.get("unread_count", 0)
+        display = contact_book.get_display_name(phone, self._contacts)
+        badge = f"  🔴 {unread}" if unread > 0 else ""
+        label_text = f"{display}{badge}"
+
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 2, 0, 2)
+
+        btn = QPushButton(label_text)
+        btn.setStyleSheet("text-align: left; padding: 5px;")
+        if unread > 0:
+            font = btn.font()
+            font.setBold(True)
+            btn.setFont(font)
+        btn.clicked.connect(lambda _, p=phone: self._select_contact(p))
+        row_layout.addWidget(btn, 1)
+
+        edit_btn = QPushButton("✏️")
+        edit_btn.setFixedSize(28, 28)
+        edit_btn.clicked.connect(lambda _, p=phone, rw=row_widget, mb=btn: self._open_nickname_editor(p, rw, mb))
+        row_layout.addWidget(edit_btn)
+
+        self.chat_list_layout.addWidget(row_widget)
+
+    def _open_nickname_editor(self, phone, row_widget, main_btn):
+        cur = self._contacts.get(phone, {}).get("nickname", "")
+        new_nick, ok = QInputDialog.getText(self, "Edit Nickname", "Enter nickname:", QLineEdit.Normal, cur)
+        if ok:
+            self._contacts = contact_book.set_nickname(phone, new_nick.strip(), self._contacts)
+            display = contact_book.get_display_name(phone, self._contacts)
+            main_btn.setText(display + (f"  🔴" if "🔴" in main_btn.text() else ""))
 
     def _select_contact(self, phone):
-        """Called when user clicks a contact row — updates state and loads history."""
-        # Clear search and reset filter
-        if self.search_entry.get():
-            self.search_entry.delete(0, "end")
-            self._filter_conversations()
-
+        if self.search_entry.text():
+            self.search_entry.clear()
+            
         self._active_phone = phone
         display = contact_book.get_display_name(phone, self._contacts)
-        header  = display if display != phone else phone
-        self.active_contact_label.configure(
-            text=f"📱 {header}", text_color=("black", "white")
-        )
-        # Pre-fill the nickname/receiver field with the best known name
-        self.receiver_entry.delete(0, "end")
-        self.receiver_entry.insert(0, display if display != phone else "")
+        header = display if display != phone else phone
+        
+        self.active_contact_label.setText(f"📱 {header}")
+        self.active_contact_label.setStyleSheet("color: palette(text); font-weight: bold;")
+        
+        self.receiver_entry.setText(display if display != phone else "")
         self.fetch_sms()
 
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # FETCH SMS HISTORY
-    # ══════════════════════════════════════════════════════════════════════════
     def fetch_sms(self):
         cooldown = rate_limiter.get_remaining_cooldown(key="last_goto_pull", cooldown_seconds=rate_limiter.GOTO_COOLDOWN_SECONDS)
         if cooldown > 0:
@@ -447,218 +329,136 @@ class MainWindow(ctk.CTk):
 
         phone = self._active_phone
         if not phone:
-            self.status_label.configure(text="Select a contact from the left panel first.")
+            self.status_label.setText("Select a contact from the left panel first.")
             return
 
-        self.status_label.configure(text="Fetching SMS history...")
-        self.fetch_btn.configure(state="disabled")
+        self.status_label.setText("Fetching SMS history...")
+        self.fetch_btn.setEnabled(False)
 
-        def _fetch():
-            gapi = goto_api.GoToAPI()
-            messages = gapi.get_sms_history(phone)
+        worker = FetchSMSWorker(phone)
+        worker.finished.connect(self._on_sms_fetched)
+        self._workers.append(worker)
+        worker.start()
 
-            def _update_ui():
-                if not self.winfo_exists():
-                    return
-                    
-                self.history_text.configure(state="normal")
-                self.history_text.delete("0.0", "end")
+    def _on_sms_fetched(self, messages):
+        self.history_text.clear()
+        
+        html = ""
+        for msg in messages:
+            body = msg.get("body", "")
+            is_user = msg.get("is_user", False)
 
-                for msg in messages:
-                    body    = msg.get("body", "")
-                    is_user = msg.get("is_user", False)
+            if body.startswith("Error") or body.startswith("No chat"):
+                html += f"<p align='center' style='color: gray;'>{body}</p>"
+            elif is_user:
+                html += f"<p align='right'><b style='color: #4caf50;'>Me</b><br>{body}</p><br>"
+            else:
+                name = self.receiver_entry.text().strip() or "Contact"
+                html += f"<p align='left'><b style='color: #2196f3;'>{name}</b><br>{body}</p><br>"
 
-                    if body.startswith("Error") or body.startswith("No chat"):
-                        self.history_text.insert("end", f"{body}\n", "system_msg")
-                    elif is_user:
-                        self.history_text.insert("end", "Me\n", "user_label")
-                        self.history_text.insert("end", f"{body}\n\n", "user_body")
-                    else:
-                        name = self.receiver_entry.get().strip() or "Contact"
-                        self.history_text.insert("end", f"{name}\n", "client_label")
-                        self.history_text.insert("end", f"{body}\n\n", "client_body")
+        self.history_text.setHtml(html)
+        
+        scrollbar = self.history_text.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
 
-                self.history_text.configure(state="disabled")
-                self.history_text._textbox.see("end")
+        ok = messages and "Error" not in messages[0].get("body", "")
+        self.status_label.setText("History loaded." if ok else "Error or empty history.")
+        self.fetch_btn.setEnabled(True)
+        self._cleanup_workers()
 
-                ok = messages and "Error" not in messages[0].get("body", "")
-                self.status_label.configure(text="History loaded." if ok else "Error or empty history.")
-                self.fetch_btn.configure(state="normal")
-
-            self.after(0, _update_ui)
-
-        threading.Thread(target=_fetch, daemon=True).start()
-
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # EXPORT CHAT HISTORY
-    # ══════════════════════════════════════════════════════════════════════════
     def export_history(self):
-        history = self.history_text.get("0.0", "end").strip()
-        phone   = self._active_phone
+        history = self.history_text.toPlainText().strip()
+        phone = self._active_phone
 
         if not history or history.startswith("Select a contact"):
-            messagebox.showwarning("Export Warning", "No chat history to export.")
+            QMessageBox.warning(self, "Export Warning", "No chat history to export.")
             return
-        if history.startswith("Error"):
-            messagebox.showwarning("Export Warning", "Cannot export history containing error messages.")
+        if "Error" in history:
+            QMessageBox.warning(self, "Export Warning", "Cannot export history containing error messages.")
             return
 
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".md",
-            filetypes=[("Markdown files", "*.md"), ("Text files", "*.txt"), ("All files", "*.*")],
-            initialfile=f"SMS_History_{phone.replace('+', '')}.md" if phone else "SMS_History.md",
-            title="Export Chat History"
+        initial_name = f"SMS_History_{phone.replace('+', '')}.md" if phone else "SMS_History.md"
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, "Export Chat History", initial_name, "Markdown files (*.md);;Text files (*.txt);;All files (*.*)"
         )
         if file_path:
             try:
-                receiver_name = self.receiver_entry.get().strip() or "Contact"
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write("# SMS Chat History\n\n")
                     if phone:
                         f.write(f"**Contact:** {phone}\n\n")
                     f.write("---\n\n")
-                    lines = history.split("\n")
-                    for line in lines:
-                        stripped = line.strip()
-                        if stripped in ("Me", receiver_name):
-                            pass
-                        elif line.startswith(receiver_name + ":") or line.startswith("Receiver:") or line.startswith("Client:"):
-                            f.write(f"- **{receiver_name}**: {line.split(':', 1)[-1].strip()}\n")
-                        elif line.startswith("Me:") or line.startswith("You:"):
-                            f.write(f"- **Me**: {line.split(':', 1)[-1].strip()}\n")
-                        elif stripped:
-                            f.write(f"{line}\n")
-                self.status_label.configure(text=f"Exported to {file_path}")
-                messagebox.showinfo("Export Successful", f"History exported to:\n{file_path}")
+                    f.write(history)
+                self.status_label.setText(f"Exported to {file_path}")
+                QMessageBox.information(self, "Export Successful", f"History exported to:\n{file_path}")
             except Exception as e:
-                self.status_label.configure(text=f"Export failed: {e}")
-                messagebox.showerror("Export Error", f"Failed to export: {e}")
+                self.status_label.setText(f"Export failed: {e}")
+                QMessageBox.critical(self, "Export Error", f"Failed to export: {e}")
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # AI REPLY GENERATION
-    # ══════════════════════════════════════════════════════════════════════════
     def generate_reply(self):
         if rate_limiter.get_remaining_cooldown() > 0:
             return
 
-        history = self.history_text.get("0.0", "end").strip()
-        intent  = self.intent_text.get("0.0", "end").strip()
-        tone    = self.tone_var.get()
+        history = self.history_text.toPlainText().strip()
+        intent = self.intent_text.toPlainText().strip()
+        tone = self.tone_combo.currentText()
 
         if not intent:
-            self.status_label.configure(text="Error: Enter your intent first.")
+            self.status_label.setText("Error: Enter your intent first.")
             return
 
-        # Capture selection and reset to False so the user must opt-in every time
-        use_paid_requested = self.use_paid_var.get()
-        self.use_paid_var.set(False)
+        use_paid = self.use_paid_cb.isChecked()
+        self.use_paid_cb.setChecked(False)
 
-        self.status_label.configure(text="Drafting reply via Gemini...")
-        self.generate_btn.configure(state="disabled")
+        self.status_label.setText("Drafting reply...")
+        self.generate_btn.setEnabled(False)
 
-        def _generate():
-            config   = config_manager.load_config()
-            receiver = self.receiver_entry.get().strip() or "Contact"
-            # ... keys ...
-            free_key = config.get("gemini_api_key")
-            paid_key = config.get("gemini_api_key_paid")
-            use_paid = use_paid_requested
+        worker = GenerateReplyWorker(
+            history, intent, tone, self.receiver_entry.text().strip() or "Contact", use_paid
+        )
+        worker.status_update.connect(lambda m: self.status_label.setText(m))
+        worker.finished.connect(self._on_reply_generated)
+        self._workers.append(worker)
+        worker.start()
 
-            reply     = ""
-            used_paid = False
-            used_ollama = False
+    def _on_reply_generated(self, reply, source):
+        self.draft_text.setPlainText(reply)
+        
+        if not reply.startswith("Error"):
+            rate_limiter.record_ai_call()
+            self.status_label.setText(f"Reply generated ({source}).")
+        else:
+            self.status_label.setText(f"Generation failed: {reply[:60]}...")
 
-            # Step 1: Try Free Gemini
-            if free_key:
-                reply = gemini_ai.generate_reply(
-                    free_key, history, tone, intent,
-                    receiver_name=receiver,
-                    custom_prompt=config.get("custom_prompt")
-                )
-            else:
-                reply = "Error: Free Gemini API key is missing."
+        self.generate_btn.setEnabled(True)
+        self._cleanup_workers()
 
-            # Step 2: Fallbacks if free fails and 'Use Paid' is enabled
-            if (not free_key or reply.startswith("Error")) and use_paid:
-                # 2.1: Try local Ollama
-                self.after(0, lambda: self.status_label.configure(text="Free key failed, checking Ollama..."))
-                if ollama_ai.is_ollama_available():
-                    self.after(0, lambda: self.status_label.configure(text="Ollama found, generating..."))
-                    reply = ollama_ai.generate_reply(
-                        history, tone, intent,
-                        receiver_name=receiver,
-                        custom_prompt=config.get("custom_prompt")
-                    )
-                    used_ollama = not reply.startswith("Error")
-                
-                # 2.2: Try Paid Gemini (if Ollama failed or unavailable)
-                if not used_ollama:
-                    if not paid_key:
-                        reply = "Error: Ollama unavailable and Paid Gemini key is missing."
-                    else:
-                        msg = "Ollama failed, trying paid key..." if "Error" in reply else "Ollama unavailable, trying paid key..."
-                        self.after(0, lambda m=msg: self.status_label.configure(text=m))
-                        reply = gemini_ai.generate_reply(
-                            paid_key, history, tone, intent,
-                            receiver_name=receiver,
-                            custom_prompt=config.get("custom_prompt")
-                        )
-                        used_paid = not reply.startswith("Error")
-
-            def _update_ui():
-                if not self.winfo_exists():
-                    return
-                self.draft_text.delete("0.0", "end")
-                self.draft_text.insert("0.0", reply)
-
-                if not reply.startswith("Error"):
-                    rate_limiter.record_ai_call()
-                    if used_ollama:
-                        self.status_label.configure(text="Reply generated (Ollama).")
-                    elif used_paid:
-                        self.status_label.configure(text="Reply generated (PAID).")
-                    else:
-                        self.status_label.configure(text="Reply generated (Free).")
-                else:
-                    self.status_label.configure(text=f"Generation failed: {reply[:60]}...")
-
-                self.generate_btn.configure(state="normal")
-
-            self.after(0, _update_ui)
-
-        threading.Thread(target=_generate, daemon=True).start()
-
-
-    # ══════════════════════════════════════════════════════════════════════════
-    # SEND SMS
-    # ══════════════════════════════════════════════════════════════════════════
     def send_sms(self):
-        phone   = self._active_phone
-        message = self.draft_text.get("0.0", "end").strip()
+        phone = self._active_phone
+        message = self.draft_text.toPlainText().strip()
 
         if not phone or not message:
-            self.status_label.configure(text="Error: No contact selected or draft is empty.")
+            self.status_label.setText("Error: No contact selected or draft is empty.")
             return
 
-        self.status_label.configure(text=f"Sending SMS to {phone}...")
-        self.send_btn.configure(state="disabled")
+        self.status_label.setText(f"Sending SMS to {phone}...")
+        self.send_btn.setEnabled(False)
 
-        def _send():
-            gapi = goto_api.GoToAPI()
-            res  = gapi.send_sms(phone, message)
-            
-            def _update_ui():
-                if not self.winfo_exists():
-                    return
-                if res:
-                    self.status_label.configure(text="SMS Sent Successfully!")
-                    self.draft_text.delete("0.0", "end")
-                    self.intent_text.delete("0.0", "end")
-                else:
-                    self.status_label.configure(text="Failed to send SMS.")
-                self.send_btn.configure(state="normal")
+        worker = SendSMSWorker(phone, message)
+        worker.finished.connect(self._on_sms_sent)
+        self._workers.append(worker)
+        worker.start()
 
-            self.after(0, _update_ui)
+    def _on_sms_sent(self, success):
+        if success:
+            self.status_label.setText("SMS Sent Successfully!")
+            self.draft_text.clear()
+            self.intent_text.clear()
+        else:
+            self.status_label.setText("Failed to send SMS.")
+        self.send_btn.setEnabled(True)
+        self._cleanup_workers()
 
-        threading.Thread(target=_send, daemon=True).start()
+    def _cleanup_workers(self):
+        self._workers = [w for w in self._workers if w.isRunning()]
+
