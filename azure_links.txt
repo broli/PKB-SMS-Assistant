@@ -1,0 +1,3 @@
+Azure Portal: https://portal.azure.com
+Microsoft Entra (Azure AD): https://entra.microsoft.com
+Azure Subscriptions Check: https://portal.azure.com/#view/Microsoft_Azure_Billing/SubscriptionsBlade

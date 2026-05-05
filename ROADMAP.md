@@ -17,17 +17,18 @@ The following outlines the phased development goals for the PKB SMS Assistant.
 - [x] **New**: Local Ollama (llama3) Fallback Integration
 - [x] **New**: Optimized 10s cooldowns for smoother UX
 
-## Phase 3: Enhanced Stability & Feedback
+## Phase 3: Microsoft Ecosystem Integration & Security
+- [ ] Implement Microsoft OAuth 2.0 Authentication (Company Account required)
+- [ ] **Secure Secret Management**: Host the Client Secret and token exchange on a Microsoft Serverless (Azure Function) backend
+- [ ] **Secure Gemini Proxy**: Route Gemini API calls through the serverless backend to keep the paid API key hidden from clients
+- [ ] Client Proxy Logic: App requests tokens and AI completions from the serverless backend instead of storing secrets locally
+
+## Phase 4: Team Deployment & Enterprise Readiness
+- [ ] **Centralized Logging**: Integrate Azure Application Insights to monitor team usage and errors
+- [ ] **Auto-Update Mechanism**: Implement a version check system to push updates to the team automatically
+- [ ] **Advanced Validation**: Better validation of phone number formats (E.164 compliance)
+- [ ] **Enterprise Installer**: Create an application icon and MSI installer using InnoSetup for easy distribution
+
+## Phase 5: Misc Improvements
 - [ ] Add loading spinners and improved GUI blocking during threaded API calls
-- [ ] Implement local app logging to track errors without printing to console
-- [ ] Better validation of phone number formats (E.164 compliance)
-- [ ] Data persistence: Displaying last used phone numbers 
-
-## Phase 4: Advanced Features
-- [ ] Multiple ongoing conversation tabs
-- [ ] Incorporate project contexts directly into the Gemini prompt (e.g., feeding the AI a PDF of the client's current project status)
-- [ ] Local storage (SQLite) caching of previous conversations to minimize GoTo API trips
-
-## Phase 5: Distribution
-- [ ] Package the application into a standalone `.exe` using PyInstaller
-- [ ] Create an application icon and installer using InnoSetup
+- [ ] Local storage (SQLite) caching of previous conversations to minimize API trips
