@@ -82,10 +82,24 @@ class SettingsWindow(QDialog):
 
         # Gemini Paid API Key
         self.scroll_layout.addWidget(QLabel("Paid Gemini API Key:"))
+        paid_key_layout = QHBoxLayout()
+        
         self.gemini_paid_entry = QLineEdit()
         self.gemini_paid_entry.setEchoMode(QLineEdit.Password)
-        self.gemini_paid_entry.setText(self.config.get("gemini_api_key_paid", ""))
-        self.scroll_layout.addWidget(self.gemini_paid_entry)
+        
+        # Display runtime override if it exists, otherwise the saved config
+        if "gemini_api_key_paid" in config_manager._RUNTIME_OVERRIDES:
+            self.gemini_paid_entry.setText(config_manager._RUNTIME_OVERRIDES["gemini_api_key_paid"])
+        else:
+            self.gemini_paid_entry.setText(self.config.get("gemini_api_key_paid", ""))
+            
+        paid_key_layout.addWidget(self.gemini_paid_entry)
+        
+        self.sync_paid_btn = QPushButton("Sync Corporate Key")
+        self.sync_paid_btn.clicked.connect(self.sync_corporate_key)
+        paid_key_layout.addWidget(self.sync_paid_btn)
+        
+        self.scroll_layout.addLayout(paid_key_layout)
         self.scroll_layout.addSpacing(15)
 
         # AI Custom Prompt
@@ -129,6 +143,27 @@ class SettingsWindow(QDialog):
         self.save_button.setMinimumHeight(40)
         self.save_button.clicked.connect(self.save_settings)
         self.main_layout.addWidget(self.save_button)
+
+    def sync_corporate_key(self):
+        # --- AUTHENTICATION SETTINGS ---
+        # Paste your SharePoint link and Decryption Key here:
+        AUTH_DOWNLOAD_URL = "YOUR_SHAREPOINT_LINK_HERE?download=1" 
+        DECRYPTION_KEY = b"YOUR_DECRYPTION_KEY_HERE"
+
+        if AUTH_DOWNLOAD_URL == "YOUR_SHAREPOINT_LINK_HERE?download=1":
+            QMessageBox.warning(self, "Not Configured", "The Corporate Sync URL is not configured in ui/settings_window.py")
+            return
+            
+        from ui.auth_window import MSAuthWindow
+        auth_window = MSAuthWindow(AUTH_DOWNLOAD_URL, DECRYPTION_KEY, parent=self)
+        
+        def on_key_retrieved(key):
+            config_manager.set_runtime_override("gemini_api_key_paid", key)
+            self.gemini_paid_entry.setText(key)
+            QMessageBox.information(self, "Success", "Corporate API Key synced successfully for this session!\n(It will not be saved to your hard drive).")
+            
+        auth_window.key_retrieved.connect(on_key_retrieved)
+        auth_window.exec()
 
     def reset_prompt(self):
         self.prompt_text.setPlainText(DEFAULT_PROMPT)

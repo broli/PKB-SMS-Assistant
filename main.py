@@ -2,8 +2,16 @@ import sys
 import os
 import logging
 import traceback
+import faulthandler
 from PySide6.QtWidgets import QApplication, QMessageBox
 from ui.main_window import MainWindow
+# Enable faulthandler to catch native segmentation faults (0xc0000005)
+# This will write the C-level traceback to crash.log even if Python crashes silently.
+try:
+    crash_log_file = open("crash.log", "a")
+    faulthandler.enable(file=crash_log_file)
+except Exception:
+    pass 
 
 APP_VERSION = "3.0"
 

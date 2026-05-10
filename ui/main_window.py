@@ -220,6 +220,7 @@ class MainWindow(QMainWindow):
         
         worker = FetchRecentChatsWorker()
         worker.finished.connect(self._on_recent_chats_fetched)
+        worker.finished.connect(worker.deleteLater)
         self._workers.append(worker)
         worker.start()
 
@@ -310,7 +311,12 @@ class MainWindow(QMainWindow):
 
     def _select_contact(self, phone):
         if self.search_entry.text():
+            self.search_entry.blockSignals(True)
             self.search_entry.clear()
+            self.search_entry.blockSignals(False)
+            # We don't immediately refresh the list here to avoid deleting the button 
+            # that was just clicked, which can cause a crash (Access Violation).
+            # The list will be naturally refreshed on next use or manual Refresh.
             
         self._active_phone = phone
         display = contact_book.get_display_name(phone, self._contacts)
@@ -337,6 +343,7 @@ class MainWindow(QMainWindow):
 
         worker = FetchSMSWorker(phone)
         worker.finished.connect(self._on_sms_fetched)
+        worker.finished.connect(worker.deleteLater)
         self._workers.append(worker)
         worker.start()
 
@@ -418,6 +425,7 @@ class MainWindow(QMainWindow):
         )
         worker.status_update.connect(lambda m: self.status_label.setText(m))
         worker.finished.connect(self._on_reply_generated)
+        worker.finished.connect(worker.deleteLater)
         self._workers.append(worker)
         worker.start()
 
@@ -446,6 +454,7 @@ class MainWindow(QMainWindow):
 
         worker = SendSMSWorker(phone, message)
         worker.finished.connect(self._on_sms_sent)
+        worker.finished.connect(worker.deleteLater)
         self._workers.append(worker)
         worker.start()
 
@@ -460,5 +469,7 @@ class MainWindow(QMainWindow):
         self._cleanup_workers()
 
     def _cleanup_workers(self):
+        # Filter out workers that have finished running. 
+        # deleteLater() will handle the actual memory cleanup on the next event loop cycle.
         self._workers = [w for w in self._workers if w.isRunning()]
 
