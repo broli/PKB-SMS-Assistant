@@ -34,7 +34,6 @@ class MainWindow(QMainWindow):
         self._active_phone = ""
         self._contacts = contact_book.load_contacts()
         self._all_conversations = []
-        self._workers = []
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -218,10 +217,9 @@ class MainWindow(QMainWindow):
         self.refresh_btn.setEnabled(False)
         self.status_label.setText("Loading recent chats...")
         
-        worker = FetchRecentChatsWorker()
+        worker = FetchRecentChatsWorker(self)
         worker.finished.connect(self._on_recent_chats_fetched)
         worker.finished.connect(worker.deleteLater)
-        self._workers.append(worker)
         worker.start()
 
     def _on_recent_chats_fetched(self, result):
@@ -238,7 +236,6 @@ class MainWindow(QMainWindow):
             self._filter_conversations()
 
         self.refresh_btn.setEnabled(True)
-        self._cleanup_workers()
 
     def _clear_chat_list(self):
         for i in reversed(range(self.chat_list_layout.count())): 
@@ -341,10 +338,9 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Fetching SMS history...")
         self.fetch_btn.setEnabled(False)
 
-        worker = FetchSMSWorker(phone)
+        worker = FetchSMSWorker(phone, self)
         worker.finished.connect(self._on_sms_fetched)
         worker.finished.connect(worker.deleteLater)
-        self._workers.append(worker)
         worker.start()
 
     def _on_sms_fetched(self, messages):
@@ -371,7 +367,6 @@ class MainWindow(QMainWindow):
         ok = messages and "Error" not in messages[0].get("body", "")
         self.status_label.setText("History loaded." if ok else "Error or empty history.")
         self.fetch_btn.setEnabled(True)
-        self._cleanup_workers()
 
     def export_history(self):
         history = self.history_text.toPlainText().strip()
@@ -421,12 +416,11 @@ class MainWindow(QMainWindow):
         self.generate_btn.setEnabled(False)
 
         worker = GenerateReplyWorker(
-            history, intent, tone, self.receiver_entry.text().strip() or "Contact", use_paid
+            history, intent, tone, self.receiver_entry.text().strip() or "Contact", use_paid, self
         )
         worker.status_update.connect(lambda m: self.status_label.setText(m))
         worker.finished.connect(self._on_reply_generated)
         worker.finished.connect(worker.deleteLater)
-        self._workers.append(worker)
         worker.start()
 
     def _on_reply_generated(self, reply, source):
@@ -439,7 +433,6 @@ class MainWindow(QMainWindow):
             self.status_label.setText(f"Generation failed: {reply[:60]}...")
 
         self.generate_btn.setEnabled(True)
-        self._cleanup_workers()
 
     def send_sms(self):
         phone = self._active_phone
@@ -452,10 +445,9 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Sending SMS to {phone}...")
         self.send_btn.setEnabled(False)
 
-        worker = SendSMSWorker(phone, message)
+        worker = SendSMSWorker(phone, message, self)
         worker.finished.connect(self._on_sms_sent)
         worker.finished.connect(worker.deleteLater)
-        self._workers.append(worker)
         worker.start()
 
     def _on_sms_sent(self, success):
@@ -466,10 +458,4 @@ class MainWindow(QMainWindow):
         else:
             self.status_label.setText("Failed to send SMS.")
         self.send_btn.setEnabled(True)
-        self._cleanup_workers()
-
-    def _cleanup_workers(self):
-        # Filter out workers that have finished running. 
-        # deleteLater() will handle the actual memory cleanup on the next event loop cycle.
-        self._workers = [w for w in self._workers if w.isRunning()]
 

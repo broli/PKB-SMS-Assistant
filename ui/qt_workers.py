@@ -4,6 +4,9 @@ from modules import goto_api, gemini_ai, contact_book, ollama_ai, config_manager
 class FetchRecentChatsWorker(QThread):
     finished = Signal(dict)
 
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
     def run(self):
         try:
             gapi = goto_api.GoToAPI()
@@ -15,8 +18,8 @@ class FetchRecentChatsWorker(QThread):
 class FetchSMSWorker(QThread):
     finished = Signal(list)
 
-    def __init__(self, phone):
-        super().__init__()
+    def __init__(self, phone, parent=None):
+        super().__init__(parent)
         self.phone = phone
 
     def run(self):
@@ -31,8 +34,8 @@ class GenerateReplyWorker(QThread):
     finished = Signal(str, str) # reply, source ('Free', 'Ollama', 'PAID', 'Error')
     status_update = Signal(str)
 
-    def __init__(self, history, intent, tone, receiver, use_paid):
-        super().__init__()
+    def __init__(self, history, intent, tone, receiver, use_paid, parent=None):
+        super().__init__(parent)
         self.history = history
         self.intent = intent
         self.tone = tone
@@ -90,8 +93,8 @@ class GenerateReplyWorker(QThread):
 class SendSMSWorker(QThread):
     finished = Signal(bool)
 
-    def __init__(self, phone, message):
-        super().__init__()
+    def __init__(self, phone, message, parent=None):
+        super().__init__(parent)
         self.phone = phone
         self.message = message
 
@@ -105,6 +108,9 @@ class SendSMSWorker(QThread):
 
 class OAuthLoginWorker(QThread):
     finished = Signal(bool)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
     def run(self):
         from modules.auth_handler import start_oauth_flow
