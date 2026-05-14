@@ -1,0 +1,54 @@
+You: i just spoke with Nicole from the glass company. she told me that the gold hardware is backordered, and will need to push the install date
+You: she had previously agreed with you to install this Friday, but it will have to be pushed for next Monday 12th
+You: still pending the shipment of the parts
+You: Good morning Audrey!
+You: i got confirmation that all parts arrived
+You: they can install Monday 8/12, between 8 and 10 am
+You: would this time be good for you ?
+Contact: Yes 
+You: Perfect
+You: we are close to the finish line!
+Contact: Yes thank you for your help
+You: Good morninng Audrey!
+You: i just got an text message from the glass door team leader that they wont be able to install today
+You: and to reschedule for tomorrow
+You: im really sorry for this, its not my expectation that they cancel/reschedule last minute
+You: they still havent given me a reason for the reschedule, but wanted to let you know asap
+You: first, if its possible for you, and secondly, to apologize and try to minimize your time lose
+You: loss*
+Contact: Ok we can reschedule for tomorrow
+You: thank you for your understanding
+You: tomorrow, same time
+Contact: Yes
+You: perfect. thanks!
+You: its scheduled
+Contact:  Ok
+You: $4,380.00
+You: Name is Carlos Ferrabone
+You: we truly value your feedback. If you had a positive experience with Payless or myself, we’d be grateful if you could leave a review and mention my name. Your support means a lot to us! Just click this link:  
+Yelp: https://www.yelp.com/biz/payless-kitchen-cabinets-glendale 
+Google https://g.page/r/CdsIvcYEJkaIEBM/review  
+Facebook https://www.facebook.com/PaylessBathMakeover/
+You: Good morning Audrey! Gentle reminder that I'm waiting for the check. is the last thing before I can close the project 😄
+Contact: 
+Contact: 
+You: thank you!
+Contact: Welcome
+Contact: Hi Carlos we are having a leaking problem from the shower door,b7g puddles of water are forming on the floor when showering please advise
+You: would it be possible to get a picture of the puddles ? it will make it easier to diagnose
+You: i will need to call the company that install it and explain whats happening (thats why i need to understand myself)
+Contact: I'll try to send a picture,but I believe it's coming from the need some kind of guard
+You: you believe its come from ? the glass door i assume. 
+from the railing in the bottom? or in between the 2 sliding doors ?
+Contact: From the bottom of the door ,there is no sliding door
+You: Morning! sorry, you are right, yours is pivoting
+You: Working on getting a repair visit from the team
+You: will let you know the proposed date
+Contact: Ok 
+Contact: Hi Carlos ,haven't heard about shower door leak?
+You: Good morning Audrey! i have requested a date a couple of times but they are having issues
+You: i will update you as soon as possible
+Contact: Ok
+You: Hi Audrey! are you available next tuesday, betwen 8 to 10 am ?
+Contact: Sept 3rd is good 8-10
+You: perfect. ill let the team know

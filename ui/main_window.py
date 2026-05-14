@@ -34,6 +34,7 @@ class MainWindow(QMainWindow):
         self._active_phone = ""
         self._contacts = contact_book.load_contacts()
         self._all_conversations = []
+        self._active_workers = set()
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -93,10 +94,19 @@ class MainWindow(QMainWindow):
         header_layout.addWidget(self.refresh_btn)
         left_layout.addLayout(header_layout)
         
+        search_layout = QHBoxLayout()
         self.search_entry = QLineEdit()
         self.search_entry.setPlaceholderText("🔍 Search conversation...")
         self.search_entry.textChanged.connect(self._filter_conversations)
-        left_layout.addWidget(self.search_entry)
+        search_layout.addWidget(self.search_entry)
+        
+        self.clear_search_btn = QPushButton("✖")
+        self.clear_search_btn.setToolTip("Clear search")
+        self.clear_search_btn.setFixedWidth(28)
+        self.clear_search_btn.clicked.connect(self.search_entry.clear)
+        search_layout.addWidget(self.clear_search_btn)
+        
+        left_layout.addLayout(search_layout)
         
         self.chat_list_area = QScrollArea()
         self.chat_list_area.setWidgetResizable(True)
@@ -217,23 +227,37 @@ class MainWindow(QMainWindow):
         self.refresh_btn.setEnabled(False)
         self.status_label.setText("Loading recent chats...")
         
-        worker = FetchRecentChatsWorker(self)
-        worker.finished.connect(self._on_recent_chats_fetched)
-        worker.finished.connect(worker.deleteLater)
-        worker.start()
+        worker = FetchRecentChatsWorker()
+        worker.data_fetched.connect(self._on_recent_chats_fetched)
+        worker.error.connect(self._on_worker_error)
+        
+        from ui.thread_manager import run_in_thread
+        run_in_thread(worker, parent_widget=self)
+
+    def _on_worker_error(self, err_msg):
+        self.status_label.setText("An error occurred.")
+        self.status_label.setStyleSheet("color: red;")
+        self.refresh_btn.setEnabled(True)
+        self.fetch_btn.setEnabled(True)
+        self.generate_btn.setEnabled(True)
+        self.send_btn.setEnabled(True)
+        print(err_msg)
 
     def _on_recent_chats_fetched(self, result):
         self._clear_chat_list()
         
         if "error" in result:
-            lbl = QLabel(result["error"])
-            lbl.setStyleSheet("color: red;")
-            lbl.setWordWrap(True)
-            self.chat_list_layout.addWidget(lbl)
-            self.status_label.setText("Error loading recent chats.")
-        else:
-            self._all_conversations = result.get("conversations", [])
-            self._filter_conversations()
+            self.status_label.setText(f"Error: {result['error']}")
+            self.status_label.setStyleSheet("color: red;")
+            self.refresh_btn.setEnabled(True)
+            return
+
+        self.status_label.setStyleSheet("color: palette(text);")
+        self._all_conversations = result.get("conversations", [])
+        self._filter_conversations()
+
+        if not self._all_conversations:
+            self.status_label.setText("No recent conversations found.")
 
         self.refresh_btn.setEnabled(True)
 
@@ -338,10 +362,12 @@ class MainWindow(QMainWindow):
         self.status_label.setText("Fetching SMS history...")
         self.fetch_btn.setEnabled(False)
 
-        worker = FetchSMSWorker(phone, self)
-        worker.finished.connect(self._on_sms_fetched)
-        worker.finished.connect(worker.deleteLater)
-        worker.start()
+        worker = FetchSMSWorker(phone)
+        worker.data_fetched.connect(self._on_sms_fetched)
+        worker.error.connect(self._on_worker_error)
+        
+        from ui.thread_manager import run_in_thread
+        run_in_thread(worker, parent_widget=self)
 
     def _on_sms_fetched(self, messages):
         self.history_text.clear()
@@ -416,12 +442,14 @@ class MainWindow(QMainWindow):
         self.generate_btn.setEnabled(False)
 
         worker = GenerateReplyWorker(
-            history, intent, tone, self.receiver_entry.text().strip() or "Contact", use_paid, self
+            history, intent, tone, self.receiver_entry.text().strip() or "Contact", use_paid
         )
-        worker.status_update.connect(lambda m: self.status_label.setText(m))
-        worker.finished.connect(self._on_reply_generated)
-        worker.finished.connect(worker.deleteLater)
-        worker.start()
+        worker.status.connect(lambda m: self.status_label.setText(m))
+        worker.reply_generated.connect(self._on_reply_generated)
+        worker.error.connect(self._on_worker_error)
+        
+        from ui.thread_manager import run_in_thread
+        run_in_thread(worker, parent_widget=self)
 
     def _on_reply_generated(self, reply, source):
         self.draft_text.setPlainText(reply)
@@ -445,10 +473,12 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Sending SMS to {phone}...")
         self.send_btn.setEnabled(False)
 
-        worker = SendSMSWorker(phone, message, self)
-        worker.finished.connect(self._on_sms_sent)
-        worker.finished.connect(worker.deleteLater)
-        worker.start()
+        worker = SendSMSWorker(phone, message)
+        worker.sms_sent.connect(self._on_sms_sent)
+        worker.error.connect(self._on_worker_error)
+        
+        from ui.thread_manager import run_in_thread
+        run_in_thread(worker, parent_widget=self)
 
     def _on_sms_sent(self, success):
         if success:

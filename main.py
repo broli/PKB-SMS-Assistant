@@ -8,10 +8,19 @@ from ui.main_window import MainWindow
 # Enable faulthandler to catch native segmentation faults (0xc0000005)
 # This will write the C-level traceback to crash.log even if Python crashes silently.
 try:
-    crash_log_file = open("crash.log", "a")
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    crash_log_path = os.path.join(base_dir, "crash.log")
+    crash_log_file = open(crash_log_path, "a")
+    import datetime
+    crash_log_file.write(f"\n--- APP SESSION STARTED AT {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+    crash_log_file.flush()
     faulthandler.enable(file=crash_log_file)
 except Exception:
-    pass 
+    pass
 
 APP_VERSION = "3.0"
 
@@ -44,16 +53,25 @@ def handle_exception(exc_type, exc_value, exc_traceback):
     logging.critical("Uncaught exception:\n%s", error_msg)
     
     # Always write fatal crashes to a separate file for easy discovery
-    with open("crash.log", "a") as f:
-        import datetime
-        f.write(f"\n--- CRASH AT {datetime.datetime.now()} ---\n")
-        f.write(error_msg)
-        f.write("-" * 30 + "\n")
+    try:
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        else:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+        crash_log_path = os.path.join(base_dir, "crash.log")
+        
+        with open(crash_log_path, "a") as f:
+            import datetime
+            f.write(f"\n--- CRASH AT {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+            f.write(error_msg)
+            f.write("-" * 30 + "\n")
+    except Exception as e:
+        logging.error(f"Failed to write crash log: {e}")
 
     # Show a message box to the user since it's a GUI app
     try:
         msg = QMessageBox()
-        msg.setIcon(QMessageBox.Critical)
+        msg.setIcon(QMessageBox.Icon.Critical)
         msg.setText("The application has crashed.")
         msg.setInformativeText("An error log has been saved to 'crash.log'. Please share this file with the developer.")
         msg.setWindowTitle("Fatal Error")
