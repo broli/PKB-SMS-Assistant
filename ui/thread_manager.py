@@ -49,12 +49,8 @@ def run_in_thread(worker: BaseWorker, parent_widget=None):
     worker.finished.connect(thread.quit)
     worker.error.connect(thread.quit)
     
-    # Optional signals for any custom finished signals your workers might have
-    # If your worker has a custom signal like `data_fetched = Signal(dict)`, 
-    # you'll need to connect it to thread.quit manually or ensure `finished` is also emitted.
-    # We'll handle custom quit connections in the specific worker implementations.
-
-    worker.finished.connect(worker.deleteLater)
+    # Use thread.finished to trigger deleteLater for BOTH, ensuring cleanup even on error
+    thread.finished.connect(worker.deleteLater)
     thread.finished.connect(thread.deleteLater)
     
     if parent_widget is not None:
@@ -67,7 +63,8 @@ def run_in_thread(worker: BaseWorker, parent_widget=None):
             if hasattr(parent_widget, '_active_threads'):
                 parent_widget._active_threads.discard((t, w))
                 
-        thread.finished.connect(cleanup)
+        # Wait for the C++ object to be destroyed before releasing Python references
+        thread.destroyed.connect(cleanup)
 
     thread.start()
     return thread
