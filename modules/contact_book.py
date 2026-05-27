@@ -107,39 +107,45 @@ def analyze_raw_text(file_path: str) -> dict:
         
         plan["total_scanned"] = len(lines)
 
-        for i, line in enumerate(lines):
-            # The GoTo "Type" column values
-            if line.lower() in ("private", "shared", "company"):
-                name = lines[i-1] if i > 0 else ""
-                # Skip header noise
-                if name in ("Name", "Type", "Phone number", "Email address", "--"):
-                    continue
+        for i in range(0, len(lines), 3):
+            if i + 2 >= len(lines):
+                break
                 
-                if i+1 < len(lines):
-                    phone_raw = lines[i+1]
-                    if phone_raw == "--" or "@" in phone_raw:
-                        continue
-                    
-                    phone = _clean_phone(phone_raw)
-                    if not phone:
-                        continue
-                    
-                    if phone in current_db:
-                        entry = current_db[phone]
-                        if entry.get("nickname"):
-                            plan["preserve"][phone] = {
-                                "name": entry.get("name", ""),
-                                "nick": entry.get("nickname")
-                            }
-                        else:
-                            old_name = entry.get("name", "")
-                            if old_name != name:
-                                plan["update"][phone] = {"old": old_name, "new": name}
-                            else:
-                                # Name is exactly the same, count as preserve/no-change
-                                plan["preserve"][phone] = {"name": name, "nick": ""}
+            name = lines[i]
+            type_str = lines[i+1]
+            phone_raw = lines[i+2]
+            
+            # Basic validation just in case
+            if type_str.lower() not in ("private", "shared", "company"):
+                continue
+                
+            # Skip header noise if accidentally present
+            if name in ("Name", "Type", "Phone number", "Email address", "--"):
+                continue
+                
+            if phone_raw == "--" or "@" in phone_raw:
+                continue
+                
+            phone = _clean_phone(phone_raw)
+            if not phone:
+                continue
+                
+            if phone in current_db:
+                entry = current_db[phone]
+                if entry.get("nickname"):
+                    plan["preserve"][phone] = {
+                        "name": entry.get("name", ""),
+                        "nick": entry.get("nickname")
+                    }
+                else:
+                    old_name = entry.get("name", "")
+                    if old_name != name:
+                        plan["update"][phone] = {"old": old_name, "new": name}
                     else:
-                        plan["new"][phone] = name
+                        # Name is exactly the same, count as preserve/no-change
+                        plan["preserve"][phone] = {"name": name, "nick": ""}
+            else:
+                plan["new"][phone] = name
 
     except Exception as e:
         print(f"[contact_book] Error analyzing text: {e}")

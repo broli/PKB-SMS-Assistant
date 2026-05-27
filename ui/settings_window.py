@@ -78,6 +78,10 @@ class SettingsWindow(QDialog):
         self.gemini_free_entry.setEchoMode(QLineEdit.Password)
         self.gemini_free_entry.setText(self.config.get("gemini_api_key", ""))
         self.scroll_layout.addWidget(self.gemini_free_entry)
+        
+        self.free_check_btn = QPushButton("Check Key")
+        self.free_check_btn.clicked.connect(self.check_free_key)
+        self.scroll_layout.addWidget(self.free_check_btn)
         self.scroll_layout.addSpacing(10)
 
         # Gemini Paid API Key
@@ -100,6 +104,10 @@ class SettingsWindow(QDialog):
         paid_key_layout.addWidget(self.sync_paid_btn)
         
         self.scroll_layout.addLayout(paid_key_layout)
+        
+        self.paid_check_btn = QPushButton("Check Key")
+        self.paid_check_btn.clicked.connect(self.check_paid_key)
+        self.scroll_layout.addWidget(self.paid_check_btn)
         self.scroll_layout.addSpacing(15)
 
         # AI Custom Prompt
@@ -144,6 +152,64 @@ class SettingsWindow(QDialog):
         self.save_button.clicked.connect(self.save_settings)
         self.main_layout.addWidget(self.save_button)
 
+    def check_free_key(self):
+        api_key = self.gemini_free_entry.text().strip()
+        if not api_key:
+            QMessageBox.warning(self, "Missing Key", "Please enter a Free Gemini API Key first.")
+            return
+            
+        self.free_check_btn.setEnabled(False)
+        self.free_check_btn.setText("Checking...")
+        
+        from ui.qt_workers import CheckGeminiKeyWorker
+        self.free_worker = CheckGeminiKeyWorker(api_key)
+        self.free_worker.models_fetched.connect(self.on_free_models_fetched)
+        self.free_worker.error.connect(self.on_free_check_error)
+        
+        from ui.thread_manager import run_in_thread
+        run_in_thread(self.free_worker, self)
+
+    def on_free_models_fetched(self, models):
+        self.free_check_btn.setEnabled(True)
+        self.free_check_btn.setText("Check Key")
+        models_str = "\n".join(f"- {m}" for m in models)
+        QMessageBox.information(self, "Success", f"Free key is valid!\n\nAvailable models (sorted best to worst):\n{models_str}")
+
+    def on_free_check_error(self, err_msg):
+        self.free_check_btn.setEnabled(True)
+        self.free_check_btn.setText("Check Key")
+        clean_err = err_msg.split("\n")[0]
+        QMessageBox.critical(self, "Key Validation Failed", f"Failed to validate free key:\n{clean_err}")
+
+    def check_paid_key(self):
+        api_key = self.gemini_paid_entry.text().strip()
+        if not api_key:
+            QMessageBox.warning(self, "Missing Key", "Please enter a Paid Gemini API Key first.")
+            return
+            
+        self.paid_check_btn.setEnabled(False)
+        self.paid_check_btn.setText("Checking...")
+        
+        from ui.qt_workers import CheckGeminiKeyWorker
+        self.paid_worker = CheckGeminiKeyWorker(api_key)
+        self.paid_worker.models_fetched.connect(self.on_paid_models_fetched)
+        self.paid_worker.error.connect(self.on_paid_check_error)
+        
+        from ui.thread_manager import run_in_thread
+        run_in_thread(self.paid_worker, self)
+
+    def on_paid_models_fetched(self, models):
+        self.paid_check_btn.setEnabled(True)
+        self.paid_check_btn.setText("Check Key")
+        models_str = "\n".join(f"- {m}" for m in models)
+        QMessageBox.information(self, "Success", f"Paid key is valid!\n\nAvailable models (sorted best to worst):\n{models_str}")
+
+    def on_paid_check_error(self, err_msg):
+        self.paid_check_btn.setEnabled(True)
+        self.paid_check_btn.setText("Check Key")
+        clean_err = err_msg.split("\n")[0]
+        QMessageBox.critical(self, "Key Validation Failed", f"Failed to validate paid key:\n{clean_err}")
+
     def sync_corporate_key(self):
         # --- AUTHENTICATION SETTINGS ---
         # Paste your SharePoint link and Decryption Key here:
@@ -173,8 +239,10 @@ class SettingsWindow(QDialog):
         self.login_button.setText("Waiting in browser...")
         
         self.worker = OAuthLoginWorker()
-        self.worker.finished.connect(self.on_login_complete)
-        self.worker.start()
+        self.worker.login_complete.connect(self.on_login_complete)
+        
+        from ui.thread_manager import run_in_thread
+        run_in_thread(self.worker, self)
 
     def on_login_complete(self, success):
         self.login_button.setEnabled(True)

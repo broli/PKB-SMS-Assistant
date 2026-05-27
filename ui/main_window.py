@@ -103,7 +103,7 @@ class MainWindow(QMainWindow):
         self.clear_search_btn = QPushButton("✖")
         self.clear_search_btn.setToolTip("Clear search")
         self.clear_search_btn.setFixedWidth(28)
-        self.clear_search_btn.clicked.connect(self.search_entry.clear)
+        self.clear_search_btn.clicked.connect(self._on_clear_search_clicked)
         search_layout.addWidget(self.clear_search_btn)
         
         left_layout.addLayout(search_layout)
@@ -115,6 +115,12 @@ class MainWindow(QMainWindow):
         self.chat_list_layout.setAlignment(Qt.AlignTop)
         self.chat_list_area.setWidget(self.chat_list_widget)
         left_layout.addWidget(self.chat_list_area, 1)
+
+    def _on_clear_search_clicked(self):
+        if self.search_entry.text():
+            self.search_entry.clear()
+        else:
+            self._filter_conversations()
 
     def _setup_middle_panel(self):
         mid_frame = QFrame()
@@ -195,6 +201,7 @@ class MainWindow(QMainWindow):
         status_layout.setContentsMargins(10, 0, 10, 5)
         
         self.status_label = QLabel("Ready")
+        self.status_label.setStyleSheet("color: palette(text); font-weight: normal;")
         status_layout.addWidget(self.status_label)
         
         status_layout.addStretch()
@@ -205,6 +212,17 @@ class MainWindow(QMainWindow):
         status_layout.addWidget(self.cooldown_label)
         
         self.main_layout.addWidget(status_frame)
+
+    def _set_status(self, text, color="yellow"):
+        self.status_label.setText(text)
+        if color == "green":
+            self.status_label.setStyleSheet("color: #4caf50; font-weight: bold;")
+        elif color == "red":
+            self.status_label.setStyleSheet("color: #f44336; font-weight: bold;")
+        elif color == "yellow":
+            self.status_label.setStyleSheet("color: #ffb300; font-weight: bold;")
+        else:
+            self.status_label.setStyleSheet("color: palette(text); font-weight: normal;")
 
     def _update_cooldown_monitor(self):
         ai_cd = rate_limiter.get_remaining_cooldown(key="last_ai_call", cooldown_seconds=rate_limiter.AI_COOLDOWN_SECONDS)
@@ -225,7 +243,7 @@ class MainWindow(QMainWindow):
 
     def fetch_recent_chats(self):
         self.refresh_btn.setEnabled(False)
-        self.status_label.setText("Loading recent chats...")
+        self._set_status("Loading recent chats...", "yellow")
         
         worker = FetchRecentChatsWorker()
         worker.data_fetched.connect(self._on_recent_chats_fetched)
@@ -235,8 +253,7 @@ class MainWindow(QMainWindow):
         run_in_thread(worker, parent_widget=self)
 
     def _on_worker_error(self, err_msg):
-        self.status_label.setText("An error occurred.")
-        self.status_label.setStyleSheet("color: red;")
+        self._set_status("An error occurred.", "red")
         self.refresh_btn.setEnabled(True)
         self.fetch_btn.setEnabled(True)
         self.generate_btn.setEnabled(True)
@@ -247,17 +264,15 @@ class MainWindow(QMainWindow):
         self._clear_chat_list()
         
         if "error" in result:
-            self.status_label.setText(f"Error: {result['error']}")
-            self.status_label.setStyleSheet("color: red;")
+            self._set_status(f"Error: {result['error']}", "red")
             self.refresh_btn.setEnabled(True)
             return
 
-        self.status_label.setStyleSheet("color: palette(text);")
         self._all_conversations = result.get("conversations", [])
         self._filter_conversations()
 
         if not self._all_conversations:
-            self.status_label.setText("No recent conversations found.")
+            self._set_status("No recent conversations found.", "yellow")
 
         self.refresh_btn.setEnabled(True)
 
@@ -291,9 +306,9 @@ class MainWindow(QMainWindow):
                 self._add_chat_row(convo)
 
         if query:
-            self.status_label.setText(f"Found {len(filtered)} matches.")
+            self._set_status(f"Found {len(filtered)} matches.", "green")
         elif self._all_conversations:
-            self.status_label.setText(f"Loaded {len(self._all_conversations)} recent conversations.")
+            self._set_status(f"Loaded {len(self._all_conversations)} recent conversations.", "green")
 
     def _add_chat_row(self, convo):
         phone = convo.get("phone", "Unknown")
@@ -356,10 +371,10 @@ class MainWindow(QMainWindow):
 
         phone = self._active_phone
         if not phone:
-            self.status_label.setText("Select a contact from the left panel first.")
+            self._set_status("Select a contact from the left panel first.", "yellow")
             return
 
-        self.status_label.setText("Fetching SMS history...")
+        self._set_status("Fetching SMS history...", "yellow")
         self.fetch_btn.setEnabled(False)
 
         worker = FetchSMSWorker(phone)
@@ -391,7 +406,10 @@ class MainWindow(QMainWindow):
         scrollbar.setValue(scrollbar.maximum())
 
         ok = messages and "Error" not in messages[0].get("body", "")
-        self.status_label.setText("History loaded." if ok else "Error or empty history.")
+        if ok:
+            self._set_status("History loaded.", "green")
+        else:
+            self._set_status("Error or empty history.", "red")
         self.fetch_btn.setEnabled(True)
 
     def export_history(self):
@@ -417,10 +435,10 @@ class MainWindow(QMainWindow):
                         f.write(f"**Contact:** {phone}\n\n")
                     f.write("---\n\n")
                     f.write(history)
-                self.status_label.setText(f"Exported to {file_path}")
+                self._set_status(f"Exported to {file_path}", "green")
                 QMessageBox.information(self, "Export Successful", f"History exported to:\n{file_path}")
             except Exception as e:
-                self.status_label.setText(f"Export failed: {e}")
+                self._set_status(f"Export failed: {e}", "red")
                 QMessageBox.critical(self, "Export Error", f"Failed to export: {e}")
 
     def generate_reply(self):
@@ -432,33 +450,39 @@ class MainWindow(QMainWindow):
         tone = self.tone_combo.currentText()
 
         if not intent:
-            self.status_label.setText("Error: Enter your intent first.")
+            self._set_status("Error: Enter your intent first.", "red")
             return
 
         use_paid = self.use_paid_cb.isChecked()
         self.use_paid_cb.setChecked(False)
 
-        self.status_label.setText("Drafting reply...")
+        self._set_status("Drafting reply...", "yellow")
         self.generate_btn.setEnabled(False)
+        self.draft_text.clear()
 
         worker = GenerateReplyWorker(
             history, intent, tone, self.receiver_entry.text().strip() or "Contact", use_paid
         )
-        worker.status.connect(lambda m: self.status_label.setText(m))
+        worker.status.connect(lambda m: self._set_status(m, "yellow"))
+        worker.waterfall_status.connect(self._on_waterfall_status)
         worker.reply_generated.connect(self._on_reply_generated)
         worker.error.connect(self._on_worker_error)
         
         from ui.thread_manager import run_in_thread
         run_in_thread(worker, parent_widget=self)
 
+    def _on_waterfall_status(self, msg):
+        current_text = self.draft_text.toPlainText()
+        self.draft_text.setPlainText(current_text + msg)
+
     def _on_reply_generated(self, reply, source):
         self.draft_text.setPlainText(reply)
         
         if not reply.startswith("Error"):
             rate_limiter.record_ai_call()
-            self.status_label.setText(f"Reply generated ({source}).")
+            self._set_status(f"Reply generated ({source}).", "green")
         else:
-            self.status_label.setText(f"Generation failed: {reply[:60]}...")
+            self._set_status(f"Generation failed: {reply[:60]}...", "red")
 
         self.generate_btn.setEnabled(True)
 
@@ -467,10 +491,10 @@ class MainWindow(QMainWindow):
         message = self.draft_text.toPlainText().strip()
 
         if not phone or not message:
-            self.status_label.setText("Error: No contact selected or draft is empty.")
+            self._set_status("Error: No contact selected or draft is empty.", "red")
             return
 
-        self.status_label.setText(f"Sending SMS to {phone}...")
+        self._set_status(f"Sending SMS to {phone}...", "yellow")
         self.send_btn.setEnabled(False)
 
         worker = SendSMSWorker(phone, message)
@@ -482,10 +506,10 @@ class MainWindow(QMainWindow):
 
     def _on_sms_sent(self, success):
         if success:
-            self.status_label.setText("SMS Sent Successfully!")
+            self._set_status("SMS Sent Successfully!", "green")
             self.draft_text.clear()
             self.intent_text.clear()
         else:
-            self.status_label.setText("Failed to send SMS.")
+            self._set_status("Failed to send SMS.", "red")
         self.send_btn.setEnabled(True)
 
