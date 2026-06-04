@@ -11,19 +11,17 @@ if [ ! -f "./dist/PKB SMS Assistant" ]; then
     exit 1
 fi
 
-targetDir="$HOME/.local/bin"
+appDir="$HOME/.local/share/PKB SMS Assistant"
 appsDir="$HOME/.local/share/applications"
-iconsDir="$HOME/.local/share/icons"
 
-echo -e "\e[36mDeploying executable to $targetDir...\e[0m"
+echo -e "\e[36mDeploying application to $appDir...\e[0m"
 
 # Create directories if they don't exist
-mkdir -p "$targetDir"
+mkdir -p "$appDir"
 mkdir -p "$appsDir"
-mkdir -p "$iconsDir"
 
 # Copy the executable
-cp -f "./dist/PKB SMS Assistant" "$targetDir/PKB SMS Assistant"
+cp -f "./dist/PKB SMS Assistant" "$appDir/PKB SMS Assistant"
 
 if [ $? -ne 0 ]; then
     echo -e "\e[31mFailed to copy the executable.\e[0m"
@@ -32,7 +30,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Copy the icon
-cp -f "./app.ico" "$iconsDir/pkb-sms-assistant.ico"
+cp -f "./app.png" "$appDir/pkb-sms-assistant-icon.png"
 
 # Create the .desktop file
 desktopFile="$appsDir/pkb-sms-assistant.desktop"
@@ -43,8 +41,9 @@ cat > "$desktopFile" << EOL
 Version=1.0
 Name=PKB SMS Assistant
 Comment=Desktop application to manage and interact with SMS
-Exec="$targetDir/PKB SMS Assistant"
-Icon=$iconsDir/pkb-sms-assistant.ico
+Exec="$appDir/PKB SMS Assistant"
+Path=$appDir
+Icon=$appDir/pkb-sms-assistant-icon.png
 Terminal=false
 Type=Application
 Categories=Utility;Communication;
@@ -58,5 +57,5 @@ if command -v update-desktop-database &> /dev/null; then
 fi
 
 echo -e "\e[32mDeployment successful!\e[0m"
-echo -e "\e[32mExecutable copied to: $targetDir/PKB SMS Assistant\e[0m"
+echo -e "\e[32mExecutable copied to: $appDir/PKB SMS Assistant\e[0m"
 echo -e "\e[32mDesktop entry created: $desktopFile\e[0m"

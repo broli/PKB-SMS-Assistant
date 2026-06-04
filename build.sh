@@ -9,7 +9,7 @@ if [ -f "./dist/PKB SMS Assistant" ]; then
 fi
 
 # Use the python binary in the virtual environment to run pyinstaller
-source ./venv/bin/activate
+source ./.venv/bin/activate
 pyinstaller main.spec --noconfirm
 
 # Check if build was successful

@@ -88,6 +88,10 @@ if __name__ == "__main__":
         # Globally scale the Qt UI for better readability
         os.environ["QT_SCALE_FACTOR"] = "1.2"
         
+        # Use XDG Desktop Portal to ensure native file dialogs (e.g., KDE/Dolphin favorites)
+        os.environ["QT_QPA_PLATFORMTHEME"] = "xdgdesktopportal"
+
+        
         app = QApplication(sys.argv)
         app.setStyle("Fusion") 
 
