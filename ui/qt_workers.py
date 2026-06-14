@@ -77,10 +77,11 @@ class GenerateReplyWorker(BaseWorker):
                     key, self.history, self.tone, self.intent,
                     receiver_name=self.receiver, custom_prompt=custom_prompt, model=m
                 )
-                if not reply.startswith("Error"):
+                if reply and not reply.startswith("Error"):
                     self.waterfall_status.emit(f"Success with {m}!\n")
                     return reply
-                self.waterfall_status.emit(f"Failed ({m}). Reason: {reply[:80]}...\n")
+                reason = reply[:80] if reply else "No reply"
+                self.waterfall_status.emit(f"Failed ({m}). Reason: {reason}...\n")
             return None
 
         if free_key:
@@ -103,12 +104,13 @@ class GenerateReplyWorker(BaseWorker):
                     self.history, self.tone, self.intent,
                     receiver_name=self.receiver, custom_prompt=custom_prompt
                 )
-                if not reply.startswith("Error"):
+                if reply and not reply.startswith("Error"):
                     self.waterfall_status.emit("Success with Ollama!\n")
                     self.reply_generated.emit(reply, "Ollama")
                     self.finished.emit()
                     return
-                self.waterfall_status.emit(f"Ollama failed. Reason: {reply[:80]}...\n")
+                reason = reply[:80] if reply else "No reply"
+                self.waterfall_status.emit(f"Ollama failed. Reason: {reason}...\n")
 
             if not paid_key:
                 self.waterfall_status.emit("Ollama unavailable and Paid Gemini key is missing.\n")
@@ -149,4 +151,85 @@ class OAuthLoginWorker(BaseWorker):
         from modules.auth_handler import start_oauth_flow
         success = start_oauth_flow()
         self.login_complete.emit(success)
+        self.finished.emit()
+
+class AnalyzeIntentWorker(BaseWorker):
+    intent_analyzed = Signal(str, dict)
+
+    def __init__(self, api_key, message, contact_name, phone, timezone="Local"):
+        super().__init__()
+        self.api_key = api_key
+        self.message = message
+        self.contact_name = contact_name
+        self.phone = phone
+        self.timezone = timezone
+
+    def _do_work(self):
+        from modules.intent_analyzer import analyze_sms_intent
+        
+        self.status.emit("AI analyzing commitment...")
+        intent_data = analyze_sms_intent(self.api_key, self.message, self.contact_name, timezone=self.timezone)
+        intent_data["_timezone"] = self.timezone
+        
+        self.intent_analyzed.emit(self.phone, intent_data)
+        self.finished.emit()
+
+class AnalyzeChatHistoryWorker(BaseWorker):
+    intent_analyzed = Signal(str, dict)
+
+    def __init__(self, api_key, chat_history, contact_name, phone, timezone="Local"):
+        super().__init__()
+        self.api_key = api_key
+        self.chat_history = chat_history
+        self.contact_name = contact_name
+        self.phone = phone
+        self.timezone = timezone
+
+    def _do_work(self):
+        from modules.intent_analyzer import analyze_chat_history_intent
+        
+        self.status.emit("AI scanning history for commitments...")
+        intent_data = analyze_chat_history_intent(self.api_key, self.chat_history, self.contact_name, timezone=self.timezone)
+        intent_data["_timezone"] = self.timezone
+        
+        self.intent_analyzed.emit(self.phone, intent_data)
+        self.finished.emit()
+
+class SyncCalendarWorker(BaseWorker):
+    sync_complete = Signal(bool, str)
+
+    def __init__(self, intent_data):
+        super().__init__()
+        self.intent_data = intent_data
+
+    def _do_work(self):
+        from modules.calendar_sync import EvolutionProvider
+        from datetime import datetime
+
+        self.status.emit("Syncing to calendar...")
+        provider = EvolutionProvider()
+        
+        try:
+            summary = self.intent_data.get("summary", "New Action from SMS")
+            
+            if self.intent_data.get("type") == "event":
+                start_str = self.intent_data.get("start_time")
+                end_str = self.intent_data.get("end_time")
+                
+                start_time = datetime.fromisoformat(start_str) if start_str else datetime.now()
+                end_time = datetime.fromisoformat(end_str) if end_str else None
+                
+                success = provider.add_event(summary, start_time, end_time, self.intent_data.get("_timezone", "Local"))
+                msg = f"Event added: {summary}"
+            else:
+                due_str = self.intent_data.get("due_date")
+                due_date = datetime.fromisoformat(due_str) if due_str else None
+                
+                success = provider.add_task(summary, due_date, self.intent_data.get("_timezone", "Local"))
+                msg = f"Task added: {summary}"
+
+            self.sync_complete.emit(success, msg if success else "Failed to add to calendar.")
+        except Exception as e:
+            self.sync_complete.emit(False, str(e))
+            
         self.finished.emit()

@@ -14,7 +14,8 @@ class SettingsWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings - API Keys & Prompts")
-        self.resize(600, 750)
+        self.setMinimumWidth(640)
+        self.resize(680, 750)
         self.setModal(True)
         
         self.config = config_manager.load_config()
@@ -123,11 +124,57 @@ class SettingsWindow(QDialog):
         self.scroll_layout.addWidget(self.reset_button)
         self.scroll_layout.addSpacing(20)
 
-        # Contact Book Section
+        # Calendar Settings Section
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setFrameShadow(QFrame.Sunken)
         self.scroll_layout.addWidget(sep)
+
+        calendar_font = QFont()
+        calendar_font.setPointSize(12)
+        calendar_font.setBold(True)
+        self.calendar_label = QLabel("Calendar Settings")
+        self.calendar_label.setFont(calendar_font)
+        self.scroll_layout.addWidget(self.calendar_label)
+        
+        self.scroll_layout.addWidget(QLabel("Default Time Zone (Click on the map or use dropdown):"))
+        
+        from ui.timezone_map import TimezoneMapWidget
+        self.tz_map = TimezoneMapWidget()
+        self.scroll_layout.addWidget(self.tz_map)
+        
+        from PySide6.QtWidgets import QComboBox
+        self.timezone_combo = QComboBox()
+        
+        # Populate timezones
+        try:
+            import zoneinfo
+            tz_list = ["Local"] + sorted(list(zoneinfo.available_timezones()))
+        except ImportError:
+            tz_list = ["Local", "UTC"]
+            
+        self.timezone_combo.addItems(tz_list)
+        
+        current_tz = self.config.get("timezone", "Local")
+        if current_tz in tz_list:
+            self.timezone_combo.setCurrentText(current_tz)
+        else:
+            self.timezone_combo.addItem(current_tz)
+            self.timezone_combo.setCurrentText(current_tz)
+            
+        self.tz_map.set_timezone(current_tz)
+        
+        self.tz_map.timezoneSelected.connect(self.timezone_combo.setCurrentText)
+        self.timezone_combo.currentTextChanged.connect(self.tz_map.set_timezone)
+        
+        self.scroll_layout.addWidget(self.timezone_combo)
+        self.scroll_layout.addSpacing(20)
+
+        # Contact Book Section
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setFrameShadow(QFrame.Sunken)
+        self.scroll_layout.addWidget(sep2)
 
         contacts_font = QFont()
         contacts_font.setPointSize(12)
@@ -292,7 +339,8 @@ class SettingsWindow(QDialog):
             "goto_phone": self.phone_entry.text(),
             "gemini_api_key": self.gemini_free_entry.text(),
             "gemini_api_key_paid": self.gemini_paid_entry.text(),
-            "custom_prompt": self.prompt_text.toPlainText().strip()
+            "custom_prompt": self.prompt_text.toPlainText().strip(),
+            "timezone": self.timezone_combo.currentText()
         }
 
         config_manager.save_config(new_config)

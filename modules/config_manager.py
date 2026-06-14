@@ -31,7 +31,8 @@ def load_config():
             "goto_phone": "",
             "gemini_api_key": "",
             "gemini_api_key_paid": "", # [NEW]
-            "custom_prompt": ""
+            "custom_prompt": "",
+            "timezone": "Local"
         }
 
     with CONFIG_LOCK:
@@ -51,7 +52,8 @@ def load_config():
                 "goto_phone": "",
                 "gemini_api_key": "",
                 "gemini_api_key_paid": "", # [NEW]
-                "custom_prompt": ""
+                "custom_prompt": "",
+                "timezone": "Local"
             }
 
 
