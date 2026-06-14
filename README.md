@@ -21,6 +21,11 @@
 - **⚡ Performance Tuned**: Optimized 10-second cooldowns for faster interaction cycles.
 - **📥 Chat Export**: Export your conversation histories to clean, well-formatted Markdown files for documentation or internal review.
 
+### 🚧 Currently Working On
+As part of the continuous evolution of this project, I am actively developing the following features:
+- **Intent Analysis**: Implementing advanced NLP to automatically analyze incoming messages and categorize user intent, allowing for better prioritization and automated handling.
+- **MS365 Calendar Integration**: Automatically detecting scheduling requests and seamlessly creating calendar events directly in Microsoft 365 from the chat context.
+
 ---
 
 ## 🚀 Quick Start
