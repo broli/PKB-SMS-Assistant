@@ -30,8 +30,11 @@ def load_config():
             "refresh_token": "",
             "goto_phone": "",
             "gemini_api_key": "",
-            "gemini_api_key_paid": "", # [NEW]
-            "custom_prompt": ""
+            "custom_prompt": "",
+            "timezone": "Local",
+            "calendar_provider": "Microsoft 365",
+            "m365_client_id": "",
+            "m365_tenant_id": ""
         }
 
     with CONFIG_LOCK:
@@ -50,8 +53,11 @@ def load_config():
                 "refresh_token": "",
                 "goto_phone": "",
                 "gemini_api_key": "",
-                "gemini_api_key_paid": "", # [NEW]
-                "custom_prompt": ""
+                "custom_prompt": "",
+                "timezone": "Local",
+                "calendar_provider": "Microsoft 365",
+                "m365_client_id": "",
+                "m365_tenant_id": ""
             }
 
 

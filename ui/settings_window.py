@@ -14,7 +14,8 @@ class SettingsWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings - API Keys & Prompts")
-        self.resize(600, 750)
+        self.setMinimumWidth(640)
+        self.resize(680, 750)
         self.setModal(True)
         
         self.config = config_manager.load_config()
@@ -72,42 +73,65 @@ class SettingsWindow(QDialog):
         self.scroll_layout.addWidget(self.phone_entry)
         self.scroll_layout.addSpacing(10)
 
-        # Gemini Free API Key
-        self.scroll_layout.addWidget(QLabel("Free Gemini API Key:"))
-        self.gemini_free_entry = QLineEdit()
-        self.gemini_free_entry.setEchoMode(QLineEdit.Password)
-        self.gemini_free_entry.setText(self.config.get("gemini_api_key", ""))
-        self.scroll_layout.addWidget(self.gemini_free_entry)
-        
-        self.free_check_btn = QPushButton("Check Key")
-        self.free_check_btn.clicked.connect(self.check_free_key)
-        self.scroll_layout.addWidget(self.free_check_btn)
-        self.scroll_layout.addSpacing(10)
+        # --- New Corporate Auth Section ---
+        sep_corp = QFrame()
+        sep_corp.setFrameShape(QFrame.HLine)
+        sep_corp.setFrameShadow(QFrame.Sunken)
+        self.scroll_layout.addWidget(sep_corp)
 
-        # Gemini Paid API Key
-        self.scroll_layout.addWidget(QLabel("Paid Gemini API Key:"))
-        paid_key_layout = QHBoxLayout()
+        corp_font = QFont()
+        corp_font.setPointSize(12)
+        corp_font.setBold(True)
+        self.corp_label = QLabel("Corporate Authentication")
+        self.corp_label.setFont(corp_font)
+        self.scroll_layout.addWidget(self.corp_label)
         
-        self.gemini_paid_entry = QLineEdit()
-        self.gemini_paid_entry.setEchoMode(QLineEdit.Password)
-        
-        # Display runtime override if it exists, otherwise the saved config
-        if "gemini_api_key_paid" in config_manager._RUNTIME_OVERRIDES:
-            self.gemini_paid_entry.setText(config_manager._RUNTIME_OVERRIDES["gemini_api_key_paid"])
-        else:
-            self.gemini_paid_entry.setText(self.config.get("gemini_api_key_paid", ""))
+        corp_layout = QHBoxLayout()
+        self.corp_status = QLabel("Status: Not Synced")
+        self.corp_status.setStyleSheet("color: red;")
+        # Check if we have them in memory
+        if "gemini_api_key_paid" in config_manager._RUNTIME_OVERRIDES and "m365_client_id" in config_manager._RUNTIME_OVERRIDES:
+            self.corp_status.setText("Status: Synced (In Memory)")
+            self.corp_status.setStyleSheet("color: green;")
             
-        paid_key_layout.addWidget(self.gemini_paid_entry)
-        
-        self.sync_paid_btn = QPushButton("Sync Corporate Key")
+        corp_layout.addWidget(self.corp_status)
+        corp_layout.addStretch()
+        self.sync_paid_btn = QPushButton("Log in to MS")
         self.sync_paid_btn.clicked.connect(self.sync_corporate_key)
-        paid_key_layout.addWidget(self.sync_paid_btn)
+        corp_layout.addWidget(self.sync_paid_btn)
+        self.scroll_layout.addLayout(corp_layout)
+        self.scroll_layout.addSpacing(15)
+
+        # --- Personal Keys Section ---
+        from PySide6.QtWidgets import QCheckBox
+        self.use_personal_keys_cb = QCheckBox("Use Personal Keys")
+        self.use_personal_keys_cb.setChecked(self.config.get("use_personal_keys", False))
+        self.scroll_layout.addWidget(self.use_personal_keys_cb)
         
-        self.scroll_layout.addLayout(paid_key_layout)
+        self.personal_keys_container = QWidget()
+        pk_layout = QVBoxLayout(self.personal_keys_container)
+        pk_layout.setContentsMargins(0, 0, 0, 0)
         
-        self.paid_check_btn = QPushButton("Check Key")
-        self.paid_check_btn.clicked.connect(self.check_paid_key)
-        self.scroll_layout.addWidget(self.paid_check_btn)
+        # Gemini API Key
+        pk_layout.addWidget(QLabel("Gemini API Key:"))
+        self.gemini_entry = QLineEdit()
+        self.gemini_entry.setEchoMode(QLineEdit.Password)
+        self.gemini_entry.setText(self.config.get("gemini_api_key", ""))
+        pk_layout.addWidget(self.gemini_entry)
+        
+        self.check_btn = QPushButton("Check Key")
+        self.check_btn.clicked.connect(self.check_key)
+        pk_layout.addWidget(self.check_btn)
+        pk_layout.addSpacing(10)
+        
+        self.scroll_layout.addWidget(self.personal_keys_container)
+        
+        def toggle_personal_keys(state):
+            self.personal_keys_container.setVisible(bool(state))
+        
+        self.use_personal_keys_cb.stateChanged.connect(toggle_personal_keys)
+        toggle_personal_keys(self.use_personal_keys_cb.isChecked())
+        
         self.scroll_layout.addSpacing(15)
 
         # AI Custom Prompt
@@ -123,11 +147,65 @@ class SettingsWindow(QDialog):
         self.scroll_layout.addWidget(self.reset_button)
         self.scroll_layout.addSpacing(20)
 
-        # Contact Book Section
+        # Calendar Settings Section
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
         sep.setFrameShadow(QFrame.Sunken)
         self.scroll_layout.addWidget(sep)
+
+        calendar_font = QFont()
+        calendar_font.setPointSize(12)
+        calendar_font.setBold(True)
+        self.calendar_label = QLabel("Calendar Settings")
+        self.calendar_label.setFont(calendar_font)
+        self.scroll_layout.addWidget(self.calendar_label)
+        
+        self.scroll_layout.addWidget(QLabel("Default Time Zone (Click on the map or use dropdown):"))
+        
+        from ui.timezone_map import TimezoneMapWidget
+        self.tz_map = TimezoneMapWidget()
+        self.scroll_layout.addWidget(self.tz_map)
+        
+        from PySide6.QtWidgets import QComboBox
+        self.timezone_combo = QComboBox()
+        
+        # Populate timezones
+        try:
+            import zoneinfo
+            tz_list = ["Local"] + sorted(list(zoneinfo.available_timezones()))
+        except ImportError:
+            tz_list = ["Local", "UTC"]
+            
+        self.timezone_combo.addItems(tz_list)
+        
+        current_tz = self.config.get("timezone", "Local")
+        if current_tz in tz_list:
+            self.timezone_combo.setCurrentText(current_tz)
+        else:
+            self.timezone_combo.addItem(current_tz)
+            self.timezone_combo.setCurrentText(current_tz)
+            
+        self.tz_map.set_timezone(current_tz)
+        
+        self.tz_map.timezoneSelected.connect(self.timezone_combo.setCurrentText)
+        self.timezone_combo.currentTextChanged.connect(self.tz_map.set_timezone)
+        
+        self.scroll_layout.addWidget(self.timezone_combo)
+        self.scroll_layout.addSpacing(10)
+
+        self.scroll_layout.addWidget(QLabel("Calendar Provider:"))
+        self.provider_combo = QComboBox()
+        self.provider_combo.addItems(["Microsoft 365", "Evolution"])
+        current_provider = self.config.get("calendar_provider", "Microsoft 365")
+        self.provider_combo.setCurrentText(current_provider)
+        self.scroll_layout.addWidget(self.provider_combo)
+        self.scroll_layout.addSpacing(20)
+
+        # Contact Book Section
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setFrameShadow(QFrame.Sunken)
+        self.scroll_layout.addWidget(sep2)
 
         contacts_font = QFont()
         contacts_font.setPointSize(12)
@@ -152,83 +230,67 @@ class SettingsWindow(QDialog):
         self.save_button.clicked.connect(self.save_settings)
         self.main_layout.addWidget(self.save_button)
 
-    def check_free_key(self):
-        api_key = self.gemini_free_entry.text().strip()
+    def check_key(self):
+        api_key = self.gemini_entry.text().strip()
         if not api_key:
-            QMessageBox.warning(self, "Missing Key", "Please enter a Free Gemini API Key first.")
+            QMessageBox.warning(self, "Missing Key", "Please enter a Gemini API Key first.")
             return
             
-        self.free_check_btn.setEnabled(False)
-        self.free_check_btn.setText("Checking...")
+        self.check_btn.setEnabled(False)
+        self.check_btn.setText("Checking...")
         
         from ui.qt_workers import CheckGeminiKeyWorker
-        self.free_worker = CheckGeminiKeyWorker(api_key)
-        self.free_worker.models_fetched.connect(self.on_free_models_fetched)
-        self.free_worker.error.connect(self.on_free_check_error)
+        self.worker = CheckGeminiKeyWorker(api_key)
+        self.worker.models_fetched.connect(self.on_models_fetched)
+        self.worker.error.connect(self.on_check_error)
         
         from ui.thread_manager import run_in_thread
-        run_in_thread(self.free_worker, self)
+        run_in_thread(self.worker, self)
 
-    def on_free_models_fetched(self, models):
-        self.free_check_btn.setEnabled(True)
-        self.free_check_btn.setText("Check Key")
+    def on_models_fetched(self, models):
+        self.check_btn.setEnabled(True)
+        self.check_btn.setText("Check Key")
         models_str = "\n".join(f"- {m}" for m in models)
-        QMessageBox.information(self, "Success", f"Free key is valid!\n\nAvailable models (sorted best to worst):\n{models_str}")
+        QMessageBox.information(self, "Success", f"Key is valid!\n\nAvailable models (sorted best to worst):\n{models_str}")
 
-    def on_free_check_error(self, err_msg):
-        self.free_check_btn.setEnabled(True)
-        self.free_check_btn.setText("Check Key")
+    def on_check_error(self, err_msg):
+        self.check_btn.setEnabled(True)
+        self.check_btn.setText("Check Key")
         clean_err = err_msg.split("\n")[0]
-        QMessageBox.critical(self, "Key Validation Failed", f"Failed to validate free key:\n{clean_err}")
-
-    def check_paid_key(self):
-        api_key = self.gemini_paid_entry.text().strip()
-        if not api_key:
-            QMessageBox.warning(self, "Missing Key", "Please enter a Paid Gemini API Key first.")
-            return
-            
-        self.paid_check_btn.setEnabled(False)
-        self.paid_check_btn.setText("Checking...")
-        
-        from ui.qt_workers import CheckGeminiKeyWorker
-        self.paid_worker = CheckGeminiKeyWorker(api_key)
-        self.paid_worker.models_fetched.connect(self.on_paid_models_fetched)
-        self.paid_worker.error.connect(self.on_paid_check_error)
-        
-        from ui.thread_manager import run_in_thread
-        run_in_thread(self.paid_worker, self)
-
-    def on_paid_models_fetched(self, models):
-        self.paid_check_btn.setEnabled(True)
-        self.paid_check_btn.setText("Check Key")
-        models_str = "\n".join(f"- {m}" for m in models)
-        QMessageBox.information(self, "Success", f"Paid key is valid!\n\nAvailable models (sorted best to worst):\n{models_str}")
-
-    def on_paid_check_error(self, err_msg):
-        self.paid_check_btn.setEnabled(True)
-        self.paid_check_btn.setText("Check Key")
-        clean_err = err_msg.split("\n")[0]
-        QMessageBox.critical(self, "Key Validation Failed", f"Failed to validate paid key:\n{clean_err}")
+        QMessageBox.critical(self, "Key Validation Failed", f"Failed to validate key:\n{clean_err}")
 
     def sync_corporate_key(self):
         # --- AUTHENTICATION SETTINGS ---
-        # Paste your SharePoint link and Decryption Key here:
-        AUTH_DOWNLOAD_URL = "YOUR_SHAREPOINT_LINK_HERE?download=1" 
-        DECRYPTION_KEY = b"YOUR_DECRYPTION_KEY_HERE"
+        try:
+            import corporate_secrets
+            AUTH_DOWNLOAD_URL = corporate_secrets.AUTH_DOWNLOAD_URL
+            DECRYPTION_KEY = corporate_secrets.DECRYPTION_KEY
+        except (ImportError, AttributeError):
+            AUTH_DOWNLOAD_URL = None
+            DECRYPTION_KEY = None
 
-        if AUTH_DOWNLOAD_URL == "YOUR_SHAREPOINT_LINK_HERE?download=1":
-            QMessageBox.warning(self, "Not Configured", "The Corporate Sync URL is not configured in ui/settings_window.py")
+        if not AUTH_DOWNLOAD_URL or not DECRYPTION_KEY:
+            QMessageBox.warning(self, "Not Configured", "The Corporate Sync URL and Decryption Key are not configured in corporate_secrets.py")
             return
             
         from ui.auth_window import MSAuthWindow
         auth_window = MSAuthWindow(AUTH_DOWNLOAD_URL, DECRYPTION_KEY, parent=self)
         
-        def on_key_retrieved(key):
-            config_manager.set_runtime_override("gemini_api_key_paid", key)
-            self.gemini_paid_entry.setText(key)
-            QMessageBox.information(self, "Success", "Corporate API Key synced successfully for this session!\n(It will not be saved to your hard drive).")
+        def on_config_retrieved(config_data):
+            if "gemini_api_key" in config_data:
+                config_manager.set_runtime_override("gemini_api_key", config_data["gemini_api_key"])
             
-        auth_window.key_retrieved.connect(on_key_retrieved)
+            if "m365_client_id" in config_data:
+                config_manager.set_runtime_override("m365_client_id", config_data["m365_client_id"])
+            
+            if "m365_tenant_id" in config_data:
+                config_manager.set_runtime_override("m365_tenant_id", config_data["m365_tenant_id"])
+                
+            self.corp_status.setText("Status: Synced (In Memory)")
+            self.corp_status.setStyleSheet("color: green;")
+            QMessageBox.information(self, "Success", "Corporate Configuration synced successfully!\nCredentials are now active for this session.")
+            
+        auth_window.config_retrieved.connect(on_config_retrieved)
         auth_window.exec()
 
     def reset_prompt(self):
@@ -286,13 +348,19 @@ class SettingsWindow(QDialog):
             QMessageBox.critical(self, "Import Error", "Failed to save contacts. Check console for details.")
 
     def save_settings(self):
+        use_personal = self.use_personal_keys_cb.isChecked()
+        
         new_config = {
             "access_token": self.config.get("access_token", ""),
             "refresh_token": self.config.get("refresh_token", ""),
             "goto_phone": self.phone_entry.text(),
-            "gemini_api_key": self.gemini_free_entry.text(),
-            "gemini_api_key_paid": self.gemini_paid_entry.text(),
-            "custom_prompt": self.prompt_text.toPlainText().strip()
+            "use_personal_keys": use_personal,
+            "gemini_api_key": self.gemini_entry.text() if use_personal else "",
+            "custom_prompt": self.prompt_text.toPlainText().strip(),
+            "timezone": self.timezone_combo.currentText(),
+            "calendar_provider": self.provider_combo.currentText(),
+            "m365_client_id": self.config.get("m365_client_id", ""),
+            "m365_tenant_id": self.config.get("m365_tenant_id", "")
         }
 
         config_manager.save_config(new_config)

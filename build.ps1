@@ -1,17 +1,30 @@
-Write-Host "Building PKB SMS Assistant..." -ForegroundColor Cyan
+<#
+.SYNOPSIS
+Builds the PKB SMS Assistant on Windows using PyInstaller.
+#>
 
-# Remove old executable if it exists to ensure we get a fresh build
-if (Test-Path ".\dist\PKB SMS Assistant.exe") {
-    Write-Host "Cleaning up old build..." -ForegroundColor Yellow
-    Remove-Item ".\dist\PKB SMS Assistant.exe" -Force
+Write-Host "--------------------------------------------------" -ForegroundColor Cyan
+Write-Host "Starting Build Process (Windows)..." -ForegroundColor Cyan
+Write-Host "--------------------------------------------------" -ForegroundColor Cyan
+
+# Remove old executable if it exists
+$oldExeFiles = Get-ChildItem -Path ".\dist" -Filter "PKB SMS Assistant*.exe" -ErrorAction SilentlyContinue
+foreach ($file in $oldExeFiles) {
+    Write-Host "Cleaning up old build: $($file.Name)" -ForegroundColor Yellow
+    Remove-Item $file.FullName -Force
 }
 
-& ".\.venv\Scripts\pyinstaller.exe" main.spec --noconfirm
+# Run PyInstaller
+Write-Host "Running PyInstaller..." -ForegroundColor Cyan
+& .\.venv\Scripts\python.exe -m PyInstaller windows_build.spec --noconfirm
 
-# Check if build was successful
-if ($LASTEXITCODE -eq 0 -and (Test-Path ".\dist\PKB SMS Assistant.exe")) {
-    Write-Host "Build completed successfully! The executable is located in the 'dist' folder." -ForegroundColor Green
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "--------------------------------------------------" -ForegroundColor Green
+    Write-Host "Build Successful! Executable is in the 'dist' folder." -ForegroundColor Green
+    Write-Host "--------------------------------------------------" -ForegroundColor Green
 } else {
-    Write-Host "Build failed. Please check the output above for errors." -ForegroundColor Red
-    exit 1
+    Write-Host "--------------------------------------------------" -ForegroundColor Red
+    Write-Host "Error: Build failed." -ForegroundColor Red
+    Write-Host "--------------------------------------------------" -ForegroundColor Red
+    exit $LASTEXITCODE
 }

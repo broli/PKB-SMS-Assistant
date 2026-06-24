@@ -6,7 +6,7 @@ datas = []
 binaries = []
 hiddenimports = []
 
-for pkg in ('PySide6', 'google.genai', 'requests'):
+for pkg in ('PySide6', 'google.genai', 'requests', 'timezonefinder', 'h3'):
     tmp = collect_all(pkg)
     datas    += tmp[0]
     binaries += tmp[1]
@@ -16,6 +16,7 @@ for pkg in ('PySide6', 'google.genai', 'requests'):
 datas += [
     ('Icons', 'Icons'),
     ('app.ico', '.'),
+    ('ui/world_map.jpg', 'ui'),
 ]
 
 # Ensure all sub-modules of requests and google are found

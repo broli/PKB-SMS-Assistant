@@ -1,7 +1,7 @@
 import os
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                QLabel, QLineEdit, QTextEdit, QPushButton, QComboBox,
-                               QScrollArea, QFrame, QMessageBox, QCheckBox, QInputDialog, QFileDialog)
+                               QScrollArea, QFrame, QMessageBox, QCheckBox, QInputDialog, QFileDialog, QDialog)
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon
 
@@ -13,10 +13,7 @@ PRIMARY_BLUE = "#1976D2"
 
 def resource_path(relative_path):
     import sys
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
+    base_path = getattr(sys, '_MEIPASS', os.path.abspath("."))
     return os.path.join(base_path, relative_path)
 
 class MainWindow(QMainWindow):
@@ -35,6 +32,7 @@ class MainWindow(QMainWindow):
         self._contacts = contact_book.load_contacts()
         self._all_conversations = []
         self._active_workers = set()
+        self._pending_intents = {}
 
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
@@ -112,7 +110,7 @@ class MainWindow(QMainWindow):
         self.chat_list_area.setWidgetResizable(True)
         self.chat_list_widget = QWidget()
         self.chat_list_layout = QVBoxLayout(self.chat_list_widget)
-        self.chat_list_layout.setAlignment(Qt.AlignTop)
+        self.chat_list_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.chat_list_area.setWidget(self.chat_list_widget)
         left_layout.addWidget(self.chat_list_area, 1)
 
@@ -167,7 +165,7 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(QLabel("Desired Tone:"))
         
         self.tone_combo = QComboBox()
-        self.tone_combo.addItems(["Professional", "Casual", "Empathetic", "Direct", "Apologetic"])
+        self.tone_combo.addItems(["Professional", "Casual", "Empathetic", "Direct", "Apologetic", "Playful (Wholesome)", "Firm"])
         right_layout.addWidget(self.tone_combo)
         right_layout.addSpacing(10)
         
@@ -181,19 +179,28 @@ class MainWindow(QMainWindow):
         self.generate_btn.clicked.connect(self.generate_reply)
         gen_btn_layout.addWidget(self.generate_btn, 1)
         
-        self.use_paid_cb = QCheckBox("Use Paid")
-        gen_btn_layout.addWidget(self.use_paid_cb)
+
         right_layout.addLayout(gen_btn_layout)
         
         right_layout.addWidget(QLabel("Draft Reply (Editable):"))
         self.draft_text = QTextEdit()
         right_layout.addWidget(self.draft_text, 2)
         
+        action_btn_layout = QHBoxLayout()
+        
         self.send_btn = QPushButton("📤 Send SMS")
-        self.send_btn.setStyleSheet("background-color: #2da44e; color: white;")
+        self.send_btn.setStyleSheet("background-color: #2da44e; color: white; font-weight: bold;")
         self.send_btn.setMinimumHeight(34)
         self.send_btn.clicked.connect(self.send_sms)
-        right_layout.addWidget(self.send_btn)
+        action_btn_layout.addWidget(self.send_btn, 1)
+        
+        self.schedule_btn = QPushButton("🔍 Find Commitments")
+        self.schedule_btn.setStyleSheet("background-color: #e0e0e0; color: black;")
+        self.schedule_btn.setMinimumHeight(34)
+        self.schedule_btn.clicked.connect(self._on_schedule_clicked)
+        action_btn_layout.addWidget(self.schedule_btn, 1)
+        
+        right_layout.addLayout(action_btn_layout)
 
     def _setup_status_bar(self):
         status_frame = QFrame()
@@ -277,11 +284,12 @@ class MainWindow(QMainWindow):
         self.refresh_btn.setEnabled(True)
 
     def _clear_chat_list(self):
-        for i in reversed(range(self.chat_list_layout.count())): 
-            widget_to_remove = self.chat_list_layout.itemAt(i).widget()
-            if widget_to_remove is not None:
-                widget_to_remove.setParent(None)
-                widget_to_remove.deleteLater()
+        while self.chat_list_layout.count():
+            item = self.chat_list_layout.takeAt(0)
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
     def _filter_conversations(self):
         query = self.search_entry.text().lower().strip()
@@ -339,7 +347,7 @@ class MainWindow(QMainWindow):
 
     def _open_nickname_editor(self, phone, row_widget, main_btn):
         cur = self._contacts.get(phone, {}).get("nickname", "")
-        new_nick, ok = QInputDialog.getText(self, "Edit Nickname", "Enter nickname:", QLineEdit.Normal, cur)
+        new_nick, ok = QInputDialog.getText(self, "Edit Nickname", "Enter nickname:", QLineEdit.EchoMode.Normal, cur)
         if ok:
             self._contacts = contact_book.set_nickname(phone, new_nick.strip(), self._contacts)
             display = contact_book.get_display_name(phone, self._contacts)
@@ -362,6 +370,7 @@ class MainWindow(QMainWindow):
         self.active_contact_label.setStyleSheet("color: palette(text); font-weight: bold;")
         
         self.receiver_entry.setText(display if display != phone else "")
+        self._update_schedule_btn_state(phone)
         self.fetch_sms()
 
     def fetch_sms(self):
@@ -453,15 +462,14 @@ class MainWindow(QMainWindow):
             self._set_status("Error: Enter your intent first.", "red")
             return
 
-        use_paid = self.use_paid_cb.isChecked()
-        self.use_paid_cb.setChecked(False)
+
 
         self._set_status("Drafting reply...", "yellow")
         self.generate_btn.setEnabled(False)
         self.draft_text.clear()
 
         worker = GenerateReplyWorker(
-            history, intent, tone, self.receiver_entry.text().strip() or "Contact", use_paid
+            history, intent, tone, self.receiver_entry.text().strip() or "Contact"
         )
         worker.status.connect(lambda m: self._set_status(m, "yellow"))
         worker.waterfall_status.connect(self._on_waterfall_status)
@@ -503,6 +511,99 @@ class MainWindow(QMainWindow):
         
         from ui.thread_manager import run_in_thread
         run_in_thread(worker, parent_widget=self)
+
+        # Spawn the intent analyzer concurrently
+        config = config_manager.load_config()
+        api_key = config.get("gemini_api_key")
+        contact_name = contact_book.get_display_name(phone, self._contacts)
+        timezone = config.get("timezone", "Local")
+        
+        from ui.qt_workers import AnalyzeIntentWorker
+        intent_worker = AnalyzeIntentWorker(api_key, message, contact_name, phone, timezone)
+        intent_worker.intent_analyzed.connect(self._on_intent_analyzed)
+        run_in_thread(intent_worker, parent_widget=self)
+
+    def _update_schedule_btn_state(self, phone):
+        intent_data = self._pending_intents.get(phone)
+        self.schedule_btn.setEnabled(True)  # Always ensure button is enabled when updating state
+        if not intent_data or intent_data.get("intent_level") == "none":
+            self.schedule_btn.setText("🔍 Find Commitments")
+            self.schedule_btn.setStyleSheet("background-color: #e0e0e0; color: black;")
+        else:
+            self.schedule_btn.setText("📅 Schedule Event")
+            level = intent_data.get("intent_level")
+            if level == "firm":
+                self.schedule_btn.setStyleSheet("background-color: #4caf50; color: white; font-weight: bold;")
+            elif level == "maybe":
+                self.schedule_btn.setStyleSheet("background-color: #ffb300; color: black; font-weight: bold;")
+
+    def _on_schedule_clicked(self):
+        phone = self._active_phone
+        if not phone:
+            self._set_status("Select a contact first.", "yellow")
+            return
+            
+        intent_data = self._pending_intents.get(phone)
+        if not intent_data or intent_data.get("intent_level") == "none":
+            # State A: Trigger Chat History Analysis
+            history = self.history_text.toPlainText().strip()
+            if not history or history.startswith("Select a contact") or "Error" in history:
+                self._set_status("No valid chat history to analyze.", "yellow")
+                return
+                
+            self.schedule_btn.setEnabled(False)
+            self.schedule_btn.setText("Scanning...")
+            
+            config = config_manager.load_config()
+            api_key = config.get("gemini_api_key")
+            contact_name = contact_book.get_display_name(phone, self._contacts)
+            timezone = config.get("timezone", "Local")
+            
+            from ui.qt_workers import AnalyzeChatHistoryWorker
+            from ui.thread_manager import run_in_thread
+            worker = AnalyzeChatHistoryWorker(api_key, history, contact_name, phone, timezone)
+            worker.intent_analyzed.connect(self._on_intent_analyzed)
+            run_in_thread(worker, parent_widget=self)
+        else:
+            # State B: Open Dialog
+            from ui.calendar_dialog import CalendarReviewDialog
+            dialog = CalendarReviewDialog(intent_data, parent=self)
+            from PySide6.QtWidgets import QDialog
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                updated_intent = dialog.get_updated_intent()
+                
+                from ui.qt_workers import SyncCalendarWorker
+                from ui.thread_manager import run_in_thread
+                
+                self._set_status("Syncing to calendar...", "yellow")
+                sync_worker = SyncCalendarWorker(updated_intent)
+                sync_worker.sync_complete.connect(self._on_sync_complete)
+                run_in_thread(sync_worker, parent_widget=self)
+                
+                self._pending_intents[phone] = {"intent_level": "none"}
+                self._update_schedule_btn_state(phone)
+            else:
+                self._set_status("Calendar action ignored.", "yellow")
+                self._pending_intents[phone] = {"intent_level": "none"}
+                self._update_schedule_btn_state(phone)
+
+    def _on_intent_analyzed(self, phone, intent_data):
+        level = intent_data.get("intent_level", "none")
+        self._pending_intents[phone] = intent_data
+        
+        if phone == self._active_phone:
+            self._update_schedule_btn_state(phone)
+            
+        if level == "none":
+            self._set_status("No actionable commitment found.", "green")
+        else:
+            self._set_status(f"Found a '{level}' commitment! Click the schedule button to review.", "green")
+
+    def _on_sync_complete(self, success, message):
+        if success and "No action" not in message:
+            self._set_status(message, "green")
+        elif not success:
+            self._set_status(f"Calendar Sync Error: {message}", "yellow")
 
     def _on_sms_sent(self, success):
         if success:
