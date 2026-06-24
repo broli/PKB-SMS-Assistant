@@ -13,8 +13,8 @@ class MSAuthWindow(QDialog):
     navigates to a SharePoint direct-download link, intercepts the downloaded file,
     and decrypts the API key in memory.
     """
-    # Signal emitted when the key is successfully retrieved and decrypted
-    key_retrieved = Signal(str)
+    # Signal emitted when the config is successfully retrieved and decrypted
+    config_retrieved = Signal(dict)
 
     def __init__(self, download_url: str, decryption_key: str, parent=None):
         super().__init__(parent)
@@ -43,7 +43,8 @@ class MSAuthWindow(QDialog):
         page = QWebEnginePage(self.profile, self.browser)
         self.browser.setPage(page)
         
-        layout.addWidget(self.browser)
+        # Add the browser with a stretch factor of 1 so it takes up all remaining space
+        layout.addWidget(self.browser, 1)
         
         # Navigate to the SharePoint download link
         logging.info("Navigating to auth link...")
@@ -60,7 +61,12 @@ class MSAuthWindow(QDialog):
         download_item.setDownloadDirectory(self.temp_dir)
         download_item.setDownloadFileName("encrypted_key.tmp")
         
-        download_item.finished.connect(self.on_download_finished)
+        def check_download_state(state):
+            from PySide6.QtWebEngineCore import QWebEngineDownloadRequest
+            if state == QWebEngineDownloadRequest.DownloadState.DownloadCompleted:
+                self.on_download_finished()
+                
+        download_item.stateChanged.connect(check_download_state)
         download_item.accept()
         
         self.label.setText("Verifying your access... Please wait.")
@@ -83,11 +89,18 @@ class MSAuthWindow(QDialog):
             os.remove(self.temp_file)
             
             # Decrypt it
+            import json
             cipher_suite = Fernet(self.decryption_key)
-            api_key = cipher_suite.decrypt(encrypted_payload).decode('utf-8')
+            decrypted_str = cipher_suite.decrypt(encrypted_payload).decode('utf-8')
             
-            logging.info("Successfully decrypted API key in memory.")
-            self.key_retrieved.emit(api_key)
+            try:
+                config_data = json.loads(decrypted_str)
+            except json.JSONDecodeError:
+                # Fallback to old behavior if it's just a raw key
+                config_data = {"gemini_api_key": decrypted_str}
+            
+            logging.info("Successfully decrypted payload in memory.")
+            self.config_retrieved.emit(config_data)
             self.accept()
             
         except Exception as e:

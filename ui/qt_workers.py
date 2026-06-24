@@ -47,32 +47,30 @@ class CheckGeminiKeyWorker(BaseWorker):
         self.finished.emit()
 
 class GenerateReplyWorker(BaseWorker):
-    reply_generated = Signal(str, str) # reply, source ('Free', 'Ollama', 'PAID')
+    reply_generated = Signal(str, str) # reply, source ('Gemini', 'Ollama')
     waterfall_status = Signal(str)
 
-    def __init__(self, history, intent, tone, receiver, use_paid):
+    def __init__(self, history, intent, tone, receiver):
         super().__init__()
         self.history = history
         self.intent = intent
         self.tone = tone
         self.receiver = receiver
-        self.use_paid = use_paid
 
     def _do_work(self):
         config = config_manager.load_config()
-        free_key = config.get("gemini_api_key")
-        paid_key = config.get("gemini_api_key_paid")
+        api_key = config.get("gemini_api_key")
         custom_prompt = config.get("custom_prompt")
 
-        def try_models(key, source_name):
-            self.status.emit(f"Fetching models for {source_name} key...")
+        def try_models(key):
+            self.status.emit(f"Fetching Gemini models...")
             models = gemini_ai.get_sorted_models(key)
             if not models:
-                self.waterfall_status.emit(f"No valid models found for {source_name} key.\n")
+                self.waterfall_status.emit(f"No valid models found for Gemini key.\n")
                 return None
             
             for m in models:
-                self.waterfall_status.emit(f"Attempting {m} ({source_name})...\n")
+                self.waterfall_status.emit(f"Attempting {m}...\n")
                 reply = gemini_ai.generate_reply(
                     key, self.history, self.tone, self.intent,
                     receiver_name=self.receiver, custom_prompt=custom_prompt, model=m
@@ -84,45 +82,34 @@ class GenerateReplyWorker(BaseWorker):
                 self.waterfall_status.emit(f"Failed ({m}). Reason: {reason}...\n")
             return None
 
-        if free_key:
-            reply = try_models(free_key, "Free")
+        if api_key:
+            reply = try_models(api_key)
             if reply:
-                self.reply_generated.emit(reply, "Free")
+                self.reply_generated.emit(reply, "Gemini")
                 self.finished.emit()
                 return
         else:
-            self.waterfall_status.emit("Free Gemini API key is missing.\n")
+            self.waterfall_status.emit("Gemini API key is missing.\n")
 
-        if self.use_paid:
-            self.status.emit("Free key failed/missing, checking Ollama...")
-            self.waterfall_status.emit("Free models failed/missing. Checking local Ollama...\n")
-            
-            if ollama_ai.is_ollama_available():
-                self.status.emit("Ollama found, generating...")
-                self.waterfall_status.emit("Attempting local Ollama...\n")
-                reply = ollama_ai.generate_reply(
-                    self.history, self.tone, self.intent,
-                    receiver_name=self.receiver, custom_prompt=custom_prompt
-                )
-                if reply and not reply.startswith("Error"):
-                    self.waterfall_status.emit("Success with Ollama!\n")
-                    self.reply_generated.emit(reply, "Ollama")
-                    self.finished.emit()
-                    return
-                reason = reply[:80] if reply else "No reply"
-                self.waterfall_status.emit(f"Ollama failed. Reason: {reason}...\n")
-
-            if not paid_key:
-                self.waterfall_status.emit("Ollama unavailable and Paid Gemini key is missing.\n")
-            else:
-                self.status.emit("Ollama unavailable/failed, trying paid key...")
-                self.waterfall_status.emit("Trying Paid Gemini key models...\n")
-                
-                reply = try_models(paid_key, "PAID")
-                if reply:
-                    self.reply_generated.emit(reply, "PAID")
-                    self.finished.emit()
-                    return
+        self.status.emit("Gemini key failed/missing, checking Ollama...")
+        self.waterfall_status.emit("Gemini models failed/missing. Checking local Ollama...\n")
+        
+        if ollama_ai.is_ollama_available():
+            self.status.emit("Ollama found, generating...")
+            self.waterfall_status.emit("Attempting local Ollama...\n")
+            reply = ollama_ai.generate_reply(
+                self.history, self.tone, self.intent,
+                receiver_name=self.receiver, custom_prompt=custom_prompt
+            )
+            if reply and not reply.startswith("Error"):
+                self.waterfall_status.emit("Success with Ollama!\n")
+                self.reply_generated.emit(reply, "Ollama")
+                self.finished.emit()
+                return
+            reason = reply[:80] if reply else "No reply"
+            self.waterfall_status.emit(f"Ollama failed. Reason: {reason}...\n")
+        else:
+            self.waterfall_status.emit("Ollama unavailable.\n")
 
         self.error.emit("Failed to generate reply using any available models.")
         self.finished.emit()
@@ -203,11 +190,20 @@ class SyncCalendarWorker(BaseWorker):
         self.intent_data = intent_data
 
     def _do_work(self):
-        from modules.calendar_sync import EvolutionProvider
+        from modules.calendar_sync import EvolutionProvider, M365Provider
+        from modules import config_manager
         from datetime import datetime
 
         self.status.emit("Syncing to calendar...")
-        provider = EvolutionProvider()
+        config = config_manager.load_config()
+        provider_name = config.get("calendar_provider", "Microsoft 365")
+        
+        if provider_name == "Microsoft 365":
+            client_id = config.get("m365_client_id", "")
+            tenant_id = config.get("m365_tenant_id", "")
+            provider = M365Provider(client_id, tenant_id)
+        else:
+            provider = EvolutionProvider()
         
         try:
             summary = self.intent_data.get("summary", "New Action from SMS")

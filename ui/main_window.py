@@ -165,7 +165,7 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(QLabel("Desired Tone:"))
         
         self.tone_combo = QComboBox()
-        self.tone_combo.addItems(["Professional", "Casual", "Empathetic", "Direct", "Apologetic"])
+        self.tone_combo.addItems(["Professional", "Casual", "Empathetic", "Direct", "Apologetic", "Playful (Wholesome)", "Firm"])
         right_layout.addWidget(self.tone_combo)
         right_layout.addSpacing(10)
         
@@ -179,8 +179,7 @@ class MainWindow(QMainWindow):
         self.generate_btn.clicked.connect(self.generate_reply)
         gen_btn_layout.addWidget(self.generate_btn, 1)
         
-        self.use_paid_cb = QCheckBox("Use Paid")
-        gen_btn_layout.addWidget(self.use_paid_cb)
+
         right_layout.addLayout(gen_btn_layout)
         
         right_layout.addWidget(QLabel("Draft Reply (Editable):"))
@@ -463,15 +462,14 @@ class MainWindow(QMainWindow):
             self._set_status("Error: Enter your intent first.", "red")
             return
 
-        use_paid = self.use_paid_cb.isChecked()
-        self.use_paid_cb.setChecked(False)
+
 
         self._set_status("Drafting reply...", "yellow")
         self.generate_btn.setEnabled(False)
         self.draft_text.clear()
 
         worker = GenerateReplyWorker(
-            history, intent, tone, self.receiver_entry.text().strip() or "Contact", use_paid
+            history, intent, tone, self.receiver_entry.text().strip() or "Contact"
         )
         worker.status.connect(lambda m: self._set_status(m, "yellow"))
         worker.waterfall_status.connect(self._on_waterfall_status)
