@@ -1,6 +1,68 @@
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, QMetaObject, Qt, QCoreApplication, QObject, Slot
 from modules import goto_api, gemini_ai, contact_book, ollama_ai, config_manager, rate_limiter
 from ui.thread_manager import BaseWorker
+
+class _AuthInvoker(QObject):
+    def __init__(self):
+        super().__init__()
+        self.success = False
+
+    @Slot()
+    def run_dialog(self):
+        try:
+            import corporate_secrets
+            from ui.auth_window import MSAuthWindow
+            from modules import config_manager
+            
+            # Note: corporate_secrets should have AUTH_DOWNLOAD_URL and DECRYPTION_KEY
+            auth_url = getattr(corporate_secrets, 'AUTH_DOWNLOAD_URL', None)
+            dec_key = getattr(corporate_secrets, 'DECRYPTION_KEY', None)
+            
+            if not auth_url or not dec_key:
+                import logging
+                logging.error("Missing AUTH_DOWNLOAD_URL or DECRYPTION_KEY in corporate_secrets.py")
+                return
+                
+            dialog = MSAuthWindow(auth_url, dec_key)
+            
+            def on_config(config_data):
+                if "gemini_api_key" in config_data:
+                    config_manager.set_runtime_override("gemini_api_key", config_data["gemini_api_key"])
+                if "m365_client_id" in config_data:
+                    config_manager.set_runtime_override("m365_client_id", config_data["m365_client_id"])
+                if "m365_tenant_id" in config_data:
+                    config_manager.set_runtime_override("m365_tenant_id", config_data["m365_tenant_id"])
+                self.success = True
+                
+            dialog.config_retrieved.connect(on_config)
+            dialog.exec()
+            
+            # Safely schedule deletion of QWebEngine components to prevent memory corruption
+            if hasattr(dialog, 'browser'):
+                if dialog.browser.page():
+                    dialog.browser.page().deleteLater()
+                dialog.browser.deleteLater()
+            if hasattr(dialog, 'profile'):
+                dialog.profile.deleteLater()
+            dialog.deleteLater()
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to show auth dialog: {e}")
+
+def trigger_auth_on_main_thread():
+    """
+    Safely pauses the background worker and executes the MS Auth dialog on the main UI thread.
+    Returns True if authentication was successful and secrets were loaded into memory.
+    """
+    app = QCoreApplication.instance()
+    if not app:
+        return False
+        
+    invoker = _AuthInvoker()
+    invoker.moveToThread(app.thread())
+    QMetaObject.invokeMethod(invoker, "run_dialog", Qt.BlockingQueuedConnection)
+    return invoker.success
+
 
 class FetchRecentChatsWorker(BaseWorker):
     data_fetched = Signal(dict)
@@ -60,6 +122,12 @@ class GenerateReplyWorker(BaseWorker):
     def _do_work(self):
         config = config_manager.load_config()
         api_key = config.get("gemini_api_key")
+        
+        if not api_key:
+            self.status.emit("Gemini key missing. Triggering auth callback...")
+            if trigger_auth_on_main_thread():
+                api_key = config_manager._RUNTIME_OVERRIDES.get("gemini_api_key", "")
+                
         custom_prompt = config.get("custom_prompt")
 
         def try_models(key):
@@ -154,6 +222,11 @@ class AnalyzeIntentWorker(BaseWorker):
     def _do_work(self):
         from modules.intent_analyzer import analyze_sms_intent
         
+        if not self.api_key:
+            self.status.emit("Gemini key missing. Triggering auth callback...")
+            if trigger_auth_on_main_thread():
+                self.api_key = config_manager._RUNTIME_OVERRIDES.get("gemini_api_key", "")
+        
         self.status.emit("AI analyzing commitment...")
         intent_data = analyze_sms_intent(self.api_key, self.message, self.contact_name, timezone=self.timezone)
         intent_data["_timezone"] = self.timezone
@@ -174,6 +247,11 @@ class AnalyzeChatHistoryWorker(BaseWorker):
 
     def _do_work(self):
         from modules.intent_analyzer import analyze_chat_history_intent
+        
+        if not self.api_key:
+            self.status.emit("Gemini key missing. Triggering auth callback...")
+            if trigger_auth_on_main_thread():
+                self.api_key = config_manager._RUNTIME_OVERRIDES.get("gemini_api_key", "")
         
         self.status.emit("AI scanning history for commitments...")
         intent_data = analyze_chat_history_intent(self.api_key, self.chat_history, self.contact_name, timezone=self.timezone)
@@ -201,7 +279,7 @@ class SyncCalendarWorker(BaseWorker):
         if provider_name == "Microsoft 365":
             client_id = config.get("m365_client_id", "")
             tenant_id = config.get("m365_tenant_id", "")
-            provider = M365Provider(client_id, tenant_id)
+            provider = M365Provider(client_id, tenant_id, auth_callback=trigger_auth_on_main_thread)
         else:
             provider = EvolutionProvider()
         

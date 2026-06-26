@@ -3,7 +3,7 @@
 echo -e "\e[36mStarting Build and Deploy process...\e[0m"
 
 # Run the build script
-./build.sh
+# ./build.sh
 
 # Verify the executable exists before trying to copy
 if [ ! -f "./dist/PKB SMS Assistant" ]; then

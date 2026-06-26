@@ -83,13 +83,23 @@ class MSAuthWindow(QDialog):
             
         try:
             with open(self.temp_file, "rb") as f:
-                encrypted_payload = f.read()
+                raw_data = f.read()
                 
             # Immediately delete the file from the hard drive so it doesn't linger
             os.remove(self.temp_file)
             
-            # Decrypt it
+            # Check if the data is wrapped in the new JSON format to bypass AV
             import json
+            try:
+                wrapper = json.loads(raw_data.decode('utf-8'))
+                if "payload" in wrapper:
+                    encrypted_payload = wrapper["payload"].encode('utf-8')
+                else:
+                    encrypted_payload = raw_data
+            except Exception:
+                encrypted_payload = raw_data
+            
+            # Decrypt it
             cipher_suite = Fernet(self.decryption_key)
             decrypted_str = cipher_suite.decrypt(encrypted_payload).decode('utf-8')
             

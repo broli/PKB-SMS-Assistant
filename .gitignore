@@ -68,3 +68,4 @@ Thumbs.db
 *.log
 windows_build/
 corporate_secrets.py
+push_secrets.fish

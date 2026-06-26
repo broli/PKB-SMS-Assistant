@@ -6,7 +6,7 @@ import threading
 HISTORY_FILE = "history.json"
 HISTORY_LOCK = threading.Lock()
 AI_COOLDOWN_SECONDS = 10     # 10 seconds
-GOTO_COOLDOWN_SECONDS = 10   # 10 seconds
+GOTO_COOLDOWN_SECONDS = 2   # 2 seconds
 
 def load_history():
     if not os.path.exists(HISTORY_FILE):

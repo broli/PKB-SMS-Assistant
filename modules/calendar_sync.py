@@ -165,10 +165,11 @@ SUMMARY:{summary}"""
             return False
 
 class M365Provider(CalendarProvider):
-    def __init__(self, client_id: str, tenant_id: str):
+    def __init__(self, client_id: str, tenant_id: str, auth_callback=None):
         self.client_id = client_id
         self.tenant_id = tenant_id
-        self.authority = f"https://login.microsoftonline.com/{tenant_id}"
+        self.auth_callback = auth_callback
+        self.authority = f"https://login.microsoftonline.com/{tenant_id}" if tenant_id else ""
         self.scopes = ["Calendars.ReadWrite", "Tasks.ReadWrite"]
         self.cache = None
         self.cache_file = os.path.join(os.path.expanduser("~"), ".m365_token.bin")
@@ -183,6 +184,24 @@ class M365Provider(CalendarProvider):
                 except Exception as e:
                     logging.error(f"Failed to load msal cache: {e}")
                     
+            if self.client_id and self.tenant_id:
+                self.app = msal.PublicClientApplication(
+                    self.client_id, 
+                    authority=self.authority,
+                    token_cache=self.cache
+                )
+
+    def _ensure_app_initialized(self):
+        if not self.client_id or not self.tenant_id:
+            if self.auth_callback:
+                logging.info("M365 credentials missing. Triggering auth callback...")
+                if self.auth_callback():
+                    from modules import config_manager
+                    self.client_id = config_manager._RUNTIME_OVERRIDES.get("m365_client_id", "")
+                    self.tenant_id = config_manager._RUNTIME_OVERRIDES.get("m365_tenant_id", "")
+                    self.authority = f"https://login.microsoftonline.com/{self.tenant_id}" if self.tenant_id else ""
+        
+        if self.client_id and self.tenant_id and not self.app and msal:
             self.app = msal.PublicClientApplication(
                 self.client_id, 
                 authority=self.authority,
@@ -190,8 +209,14 @@ class M365Provider(CalendarProvider):
             )
 
     def _get_token(self):
-        if not msal or not self.app:
-            logging.error("MSAL library is not installed or app is not configured.")
+        if not msal:
+            logging.error("MSAL library is not installed.")
+            return None
+            
+        self._ensure_app_initialized()
+        
+        if not self.app:
+            logging.error("MSAL app is not configured. Missing credentials?")
             return None
             
         if not self.client_id or not self.tenant_id:
