@@ -64,7 +64,7 @@ fi
 
 # 3. Perform Rclone Sync
 echo -e "\e[36mSyncing to SharePoint (PKBspBathPC:PKB SMS Assistant)...\e[0m"
-rclone sync "$TMP_STAGE" "PKBspBathPC:PKB SMS Assistant" --exclude "corporate_config.*" --exclude "*.tmp" --progress
+rclone sync "$TMP_STAGE" "PKBspBathPC:PKB SMS Assistant" --exclude "corporate_config.*" --exclude "*.tmp" --exclude "GOTO Contacts Scraper/**" --progress
 
 if [ $? -ne 0 ]; then
     echo -e "\e[31mError: Rclone sync to SharePoint failed.\e[0m"
