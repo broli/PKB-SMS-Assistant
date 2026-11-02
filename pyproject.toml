@@ -33,3 +33,4 @@ ignore = [
     "W291",  # trailing whitespace
     "W293",  # whitespace on blank line
 ]
+
