@@ -24,18 +24,22 @@ def unscramble(scrambled_str):
         return "{}"
 
 def load_config():
+    defaults = {
+        "access_token": "",
+        "refresh_token": "",
+        "goto_phone": "",
+        "gemini_api_key": "",
+        "custom_prompt": "",
+        "timezone": "Local",
+        "calendar_provider": "Microsoft 365",
+        "m365_client_id": "",
+        "m365_tenant_id": ""
+    }
+
     if not os.path.exists(CONFIG_FILE):
-        return {
-            "access_token": "",
-            "refresh_token": "",
-            "goto_phone": "",
-            "gemini_api_key": "",
-            "custom_prompt": "",
-            "timezone": "Local",
-            "calendar_provider": "Microsoft 365",
-            "m365_client_id": "",
-            "m365_tenant_id": ""
-        }
+        with CONFIG_LOCK:
+            defaults.update(_RUNTIME_OVERRIDES)
+            return defaults
 
     with CONFIG_LOCK:
         try:
@@ -48,17 +52,8 @@ def load_config():
                 return config
         except Exception as e:
             print(f"Error loading config: {e}")
-            return {
-                "access_token": "",
-                "refresh_token": "",
-                "goto_phone": "",
-                "gemini_api_key": "",
-                "custom_prompt": "",
-                "timezone": "Local",
-                "calendar_provider": "Microsoft 365",
-                "m365_client_id": "",
-                "m365_tenant_id": ""
-            }
+            defaults.update(_RUNTIME_OVERRIDES)
+            return defaults
 
 
 def save_config(config_data):

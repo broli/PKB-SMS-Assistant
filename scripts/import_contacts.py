@@ -1,7 +1,6 @@
 import csv
 import json
 import os
-import re
 
 CONTACTS_FILE = "contacts.json"
 

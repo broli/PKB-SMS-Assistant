@@ -40,8 +40,8 @@ As part of the continuous evolution of this project, I am actively developing th
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/yourusername/pkb-sms-assistant.git
-   cd pkb-sms-assistant
+   git clone https://github.com/broli/PKB-SMS-Assistant.git
+   cd PKB-SMS-Assistant
    ```
 
 2. **Set up a virtual environment**:
@@ -81,6 +81,16 @@ pyinstaller main.spec
 ```
 
 The resulting executable will be found in the `dist/` directory.
+
+---
+
+## 📚 Documentation
+
+For more detailed setup instructions and project documentation, check out the `docs/` folder:
+- [How to Use the Assistant](docs/HOW_TO_USE.md)
+- [Feature Walkthrough](docs/walkthrough.md)
+- [Windows Build Instructions](docs/windows_build_instructions.md)
+- [Project Roadmap](docs/ROADMAP.md)
 
 ---
 

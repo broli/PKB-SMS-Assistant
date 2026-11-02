@@ -1,3 +1,4 @@
+import os
 import http.server
 import socketserver
 import urllib.parse
@@ -10,9 +11,18 @@ from modules.config_manager import save_config, load_config
 AUTHORIZE_URL = "https://authentication.logmeininc.com/oauth/authorize"
 TOKEN_URL = "https://authentication.logmeininc.com/oauth/token"
 
-# These should match what is registered in the GoTo Developer Portal
-CLIENT_ID = "85cf3392-e4fc-490e-a815-82f2ee0464dd"
-CLIENT_SECRET = "zHqIlsg5Z05E4Jy2CuJwW8px"
+# Credentials can be provided via environment variables or corporate_secrets.py
+_corp_client_id = ""
+_corp_client_secret = ""
+try:
+    import corporate_secrets
+    _corp_client_id = getattr(corporate_secrets, "GOTO_CLIENT_ID", "")
+    _corp_client_secret = getattr(corporate_secrets, "GOTO_CLIENT_SECRET", "")
+except ImportError:
+    pass
+
+CLIENT_ID = os.environ.get("GOTO_CLIENT_ID", _corp_client_id)
+CLIENT_SECRET = os.environ.get("GOTO_CLIENT_SECRET", _corp_client_secret)
 REDIRECT_URI = "http://localhost:8080/callback"
 
 class OAuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
@@ -43,6 +53,12 @@ def start_oauth_flow():
     exchanges the code for tokens, and saves them.
     Returns True if successful, False otherwise.
     """
+    if not CLIENT_ID or not CLIENT_SECRET:
+        print("Error: GoTo CLIENT_ID or CLIENT_SECRET is not configured. "
+              "Set GOTO_CLIENT_ID and GOTO_CLIENT_SECRET environment variables "
+              "or define them in corporate_secrets.py.")
+        return False
+
     SCOPES = "messaging.v1.read messaging.v1.send voice-admin.v1.read"
 
     auth_url = (

@@ -1,0 +1,35 @@
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+norecursedirs = [
+    "manual",
+    "scratch",
+    ".venv",
+    "build",
+    "dist",
+    "windows_build",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+exclude = [
+    ".git",
+    ".venv",
+    "build",
+    "dist",
+    "windows_build",
+    "scratch",
+    "tests/manual",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+    "E501",  # line length
+    "E722",  # bare except
+    "E701",  # multiple statements on one line
+    "E741",  # ambiguous variable name
+    "W291",  # trailing whitespace
+    "W293",  # whitespace on blank line
+]

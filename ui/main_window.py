@@ -1,7 +1,7 @@
 import os
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                QLabel, QLineEdit, QTextEdit, QPushButton, QComboBox,
-                               QScrollArea, QFrame, QMessageBox, QCheckBox, QInputDialog, QFileDialog, QDialog)
+                               QScrollArea, QFrame, QMessageBox, QInputDialog, QFileDialog)
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QIcon
 
@@ -351,7 +351,7 @@ class MainWindow(QMainWindow):
         if ok:
             self._contacts = contact_book.set_nickname(phone, new_nick.strip(), self._contacts)
             display = contact_book.get_display_name(phone, self._contacts)
-            main_btn.setText(display + (f"  🔴" if "🔴" in main_btn.text() else ""))
+            main_btn.setText(display + ("  🔴" if "🔴" in main_btn.text() else ""))
 
     def _select_contact(self, phone):
         if self.search_entry.text():

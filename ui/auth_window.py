@@ -2,7 +2,7 @@ import os
 import logging
 import tempfile
 from cryptography.fernet import Fernet
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressDialog, QMessageBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QMessageBox
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtCore import QUrl, Signal

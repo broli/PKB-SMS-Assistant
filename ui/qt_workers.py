@@ -1,5 +1,5 @@
 from PySide6.QtCore import Signal, QMetaObject, Qt, QCoreApplication, QObject, Slot
-from modules import goto_api, gemini_ai, contact_book, ollama_ai, config_manager, rate_limiter
+from modules import goto_api, gemini_ai, ollama_ai, config_manager
 from ui.thread_manager import BaseWorker
 
 class _AuthInvoker(QObject):
@@ -131,10 +131,10 @@ class GenerateReplyWorker(BaseWorker):
         custom_prompt = config.get("custom_prompt")
 
         def try_models(key):
-            self.status.emit(f"Fetching Gemini models...")
+            self.status.emit("Fetching Gemini models...")
             models = gemini_ai.get_sorted_models(key)
             if not models:
-                self.waterfall_status.emit(f"No valid models found for Gemini key.\n")
+                self.waterfall_status.emit("No valid models found for Gemini key.\n")
                 return None
             
             for m in models:

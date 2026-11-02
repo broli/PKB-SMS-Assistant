@@ -1,5 +1,4 @@
 from cryptography.fernet import Fernet
-import os
 
 def generate_key_and_encrypt():
     print("=== Corporate Secrets Encryptor ===")

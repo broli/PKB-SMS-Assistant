@@ -1,10 +1,9 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Optional
 import datetime
 import os
 import requests
-import json
 try:
     import msal
 except ImportError:

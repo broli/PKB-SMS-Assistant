@@ -9,7 +9,7 @@ Before using the assistant, you must configure your API keys.
    python main.py
    ```
 2. In the top right corner of the window, click on **⚙️ Settings**.
-3. Enter your **GoTo Client ID** and **GoTo Secret** (e.g. from the `Goto info.txt` template).
+3. Provide your GoTo OAuth credentials via environment variables (`GOTO_CLIENT_ID` and `GOTO_CLIENT_SECRET`) or `corporate_secrets.py`, then click **Login with GoTo**.
 4. Enter your **Google Gemini API Key**.
 5. Save the configuration. 
 

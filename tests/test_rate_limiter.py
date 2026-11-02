@@ -1,7 +1,5 @@
 import unittest
 import os
-import json
-import time
 from modules import rate_limiter
 
 class TestRateLimiter(unittest.TestCase):

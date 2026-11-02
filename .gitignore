@@ -46,6 +46,7 @@ nosetests.xml
 coverage.xml
 *.cover
 .hypothesis/
+test_history.json
 
 # Project Specific (Local Data & Config)
 config.dat
@@ -53,6 +54,9 @@ config.json
 contacts.json
 history.json
 *.dat
+corporate_config.*
+Goto info.txt
+*info.txt
 /modules/__pycache__
 /ui/__pycache__
 

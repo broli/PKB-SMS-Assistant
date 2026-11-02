@@ -1,6 +1,5 @@
 import json
 from cryptography.fernet import Fernet
-import base64
 import os
 
 def main():

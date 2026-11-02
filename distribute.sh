@@ -45,7 +45,7 @@ rm -rf "$TMP_STAGE/*"
 cp -f "$LINUX_EXE" "$TMP_STAGE/$TARGET_NAME"
 
 # Copy documentation
-DOCS=("README.md" "walkthrough.md")
+DOCS=("README.md" "docs/walkthrough.md" "walkthrough.md")
 for doc in "${DOCS[@]}"; do
     if [ -f "./$doc" ]; then
         cp -f "./$doc" "$TMP_STAGE/"

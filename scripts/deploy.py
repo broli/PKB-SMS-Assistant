@@ -1,6 +1,5 @@
 import os
 import shutil
-import sys
 
 # Configuration
 TARGET_DIR = r"C:\Users\carlo\Desktop\PKB Apps\SMS Companion"
@@ -44,7 +43,7 @@ def deploy():
             try:
                 # Use sys.stdin.flush() to avoid potential buffer issues
                 print(f"\n[?] Found local '{f}'.")
-                choice = input(f"    Do you want to copy it to the deployment folder? (y/n): ").lower().strip()
+                choice = input("    Do you want to copy it to the deployment folder? (y/n): ").lower().strip()
                 
                 if choice == 'y':
                     dest_f = os.path.join(TARGET_DIR, f)

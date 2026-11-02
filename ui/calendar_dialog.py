@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                                QLineEdit, QComboBox, QDateTimeEdit, QPushButton,
                                QFormLayout)
-from PySide6.QtCore import Qt, QDateTime
+from PySide6.QtCore import QDateTime
 import datetime
 
 class CalendarReviewDialog(QDialog):

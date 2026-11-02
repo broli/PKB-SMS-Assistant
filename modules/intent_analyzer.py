@@ -86,7 +86,7 @@ def analyze_sms_intent(api_key: str, message: str, contact_name: str = "the cont
             if result.get("intent_level") in ("firm", "maybe") and not result.get("type"):
                 result["type"] = "event"
             return result
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             logging.error(f"Failed to parse JSON from intent analyzer: {response.text}")
             return {"intent_level": "none"}
             
@@ -123,7 +123,7 @@ def analyze_chat_history_intent(api_key: str, chat_history: str, contact_name: s
             if result.get("intent_level") in ("firm", "maybe") and not result.get("type"):
                 result["type"] = "event"
             return result
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             logging.error(f"Failed to parse JSON from chat intent analyzer: {response.text}")
             return {"intent_level": "none"}
             
