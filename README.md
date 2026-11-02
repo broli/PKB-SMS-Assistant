@@ -2,39 +2,37 @@
   <img src="pkb_sms_assistant_hero.png" width="800" alt="PKB SMS Assistant Banner">
 </p>
 
-# 💬 PKB SMS Assistant v3.0
+# PKB SMS Assistant v3.0
 
-**PKB SMS Assistant** is a professional, AI-powered desktop application built with **PySide6 (Qt)** to streamline SMS communication via the **GoTo Connect** platform. By leveraging the **Google Gemini Pro** model, it helps users draft context-aware, professional replies with native cross-platform performance.
-
----
-
-## ✨ Key Features
-
-- **🤖 AI-Powered Drafting**: Generate intelligent SMS replies based on your conversation history and desired tone (Professional, Casual, Empathetic, etc.).
-- **🔐 Secure GoTo Integration**: Full OAuth2 support for secure access to your GoTo Connect messaging and contact data.
-- **📔 Advanced Contact Book**: 
-  - Effortlessly manage local nicknames for phone numbers.
-  - **Bulk Import**: Quickly sync your entire GoTo contact list via a simple copy-paste text import with a detailed safety preview.
-  - **Conflict Intelligence**: Intelligent merging logic that preserves your custom nicknames while updating official names.
-- **🔍 Smart Search**: Quickly filter your recent conversations by name or phone number in real-time.
-- **🏠 Local AI Fallback (Ollama)**: Automatically fallback to a local **Ollama (llama3)** instance when Gemini is unavailable or rate-limited.
-- **⚡ Performance Tuned**: Optimized 10-second cooldowns for faster interaction cycles.
-- **📥 Chat Export**: Export your conversation histories to clean, well-formatted Markdown files for documentation or internal review.
-
-### 🚧 Currently Working On
-As part of the continuous evolution of this project, I am actively developing the following features:
-- **Intent Analysis**: Implementing advanced NLP to automatically analyze incoming messages and categorize user intent, allowing for better prioritization and automated handling.
-- **MS365 Calendar Integration**: Automatically detecting scheduling requests and seamlessly creating calendar events directly in Microsoft 365 from the chat context.
+**PKB SMS Assistant** is a desktop application built with **PySide6 (Qt)** to manage and streamline SMS communication via the **GoTo Connect** platform. It integrates with **Google Gemini** to help users draft context-aware replies based on message history, tone, and intent.
 
 ---
 
-## 🚀 Quick Start
+## Key Features
+
+- **AI-Powered Drafting**: Generate draft replies based on conversation history and selected tone (Professional, Casual, Empathetic, etc.).
+- **GoTo Integration**: OAuth2 support for GoTo Connect messaging and contact data.
+- **Contact Book Management**: 
+  - Manage local nicknames for phone numbers.
+  - **Bulk Import**: Import GoTo contact text dumps with preview verification.
+  - **Nickname Preservation**: Merges official names from imports without overwriting local custom nicknames.
+- **Search**: Real-time filtering of recent conversations by name or phone number.
+- **Local AI Fallback (Ollama)**: Automatic fallback to a local **Ollama** instance (`llama3`) when Gemini is unavailable or rate-limited.
+- **Rate Limiting**: Configured cooldown periods to prevent API quota exhaustion on external services.
+- **Chat Export**: Export conversation histories to formatted Markdown files.
+
+For upcoming features and development plans, see [ROADMAP](docs/ROADMAP.md).
+
+---
+
+## Quick Start
 
 ### Prerequisites
 
-- Python 3.9+ 
-- A GoTo Connect Developer account (for API credentials)
+- Python 3.10+
+- A GoTo Connect Developer account (for OAuth API credentials)
 - A Google Gemini API Key (Free or Paid)
+- **Linux only**: System libraries required for Evolution calendar bindings (`sudo apt install libgirepository1.0-dev libcairo2-dev pkg-config`)
 
 ### Installation
 
@@ -62,31 +60,28 @@ As part of the continuous evolution of this project, I am actively developing th
 
 ---
 
-## 🛠️ Configuration
+## Configuration
 
-Open the **Settings** menu within the app to configure:
-- **API Keys**: Insert your Gemini API keys (Free and Paid).
-- **Local AI**: Ensure **Ollama** is running on `localhost:11434` with `llama3` for the automatic fallback feature.
-- **GoTo Auth**: Follow the easy OAuth flow to link your account.
-- **Custom Prompt**: Fine-tune the AI's "personality" by editing the global system prompt.
-
----
-
-## 📦 Building the Executable
-
-To generate a standalone `.exe` for Windows:
-
-```bash
-pyinstaller main.spec
-```
-
-The resulting executable will be found in the `dist/` directory.
+Open the **Settings** dialog in the application to configure:
+- **API Keys**: Configure Gemini API keys (Free and Paid tiers).
+- **Local AI**: Ensure **Ollama** is running on `localhost:11434` with `llama3` for offline fallback.
+- **GoTo Auth**: Authenticate using the OAuth flow to link your account.
+- **Custom Prompt**: Customize the system prompt used for AI response generation.
 
 ---
 
-## 📚 Documentation
+## Building Standalone Binaries
 
-For more detailed setup instructions and project documentation, check out the `docs/` folder:
+- **Linux**: Run `pyinstaller main.spec` (or `./build.sh`)
+- **Windows**: Run `pyinstaller windows_build.spec` (or `.\build.ps1` in PowerShell)
+
+The compiled executable is written to the `dist/` directory.
+
+---
+
+## Documentation
+
+Additional setup guides and technical references are located in `docs/`:
 - [How to Use the Assistant](docs/HOW_TO_USE.md)
 - [Feature Walkthrough](docs/walkthrough.md)
 - [Windows Build Instructions](docs/windows_build_instructions.md)
@@ -94,12 +89,6 @@ For more detailed setup instructions and project documentation, check out the `d
 
 ---
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-<p align="center">
-  Built with ❤️ for improved client communication.
-</p>
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
